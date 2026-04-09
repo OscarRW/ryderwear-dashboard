@@ -177,35 +177,6 @@ const mLabel=k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString
 
 let allOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
 
-// Fetch one gym's full history (3 pages at a time, sequential gym processing)
-async function fetchGymHistory(branchId) {
-  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth()-HISTORY_MONTHS);
-  const orders = [];
-  let page=1, done=false;
-
-  while (!done && page<=50) {
-    // 3 pages at a time within this gym
-    const pgs = [page, page+1, page+2];
-    const results = await Promise.all(pgs.map(async p => {
-      const qs = new URLSearchParams({endpoint:"SalesOrders",rows:250,page:p,where:`branchId=${branchId}`});
-      const r  = await fetch(`/api/cin7?${qs}`);
-      if (!r.ok) return [];
-      const d  = await r.json();
-      return Array.isArray(d)?d:(d.data||[]);
-    }));
-
-    for (const rows of results) {
-      if (!rows.length){ done=true; break; }
-      orders.push(...rows);
-      const last = new Date(rows[rows.length-1].createdDate||0);
-      if (last<cutoff || rows.length<250){ done=true; break; }
-    }
-    page+=3;
-    if (!done) await sleep(400); // stay under 3 req/sec
-  }
-  return orders;
-}
-
 async function loadData(){
   document.getElementById("loading").style.display="flex";
   document.getElementById("app").style.display="none";
@@ -214,17 +185,35 @@ async function loadData(){
   allOrders=[];
 
   try{
-    const entries=Object.entries(GYM_BRANCH_MAP);
-    let all=[];
+    const where  = `branchId IN (${Object.keys(GYM_BRANCH_MAP).join(",")})`;
+    const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth()-HISTORY_MONTHS);
+    let all=[], page=1, done=false;
+    const MAX=300; // 75,000 orders max ≈ 12+ months
 
-    for(let g=0;g<entries.length;g++){
-      const [id,name]=entries[g];
-      const prog=Math.round((g/entries.length)*100);
+    while(page<=MAX && !done){
+      const prog=Math.round((page/MAX)*100);
       document.getElementById("progFill").style.width=prog+"%";
-      document.getElementById("loadMsg").textContent=`Loading ${name} (${g+1}/${entries.length})…`;
-      const gymData=await fetchGymHistory(id);
-      all.push(...gymData);
-      await sleep(500); // pause between gyms to avoid rate limits
+      document.getElementById("loadMsg").textContent=
+        `Loading gym orders… ${all.length.toLocaleString()} found`;
+
+      // 3 pages in parallel — all gyms in every batch
+      const batch=[page,page+1,page+2].filter(p=>p<=MAX);
+      const results=await Promise.all(batch.map(async p=>{
+        const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page:p,where});
+        const r=await fetch(`/api/cin7?${qs}`);
+        if(!r.ok) return [];
+        const d=await r.json();
+        return Array.isArray(d)?d:(d.data||[]);
+      }));
+
+      for(const rows of results){
+        if(!rows.length){done=true;break;}
+        all.push(...rows);
+        const lastDate=new Date(rows[rows.length-1].createdDate||0);
+        if(lastDate<cutoff||rows.length<250){done=true;break;}
+      }
+      page+=3;
+      if(!done) await sleep(400);
     }
 
     document.getElementById("progFill").style.width="100%";
@@ -271,7 +260,7 @@ function calcMoM(invs){
   const m={};
   invs.forEach(inv=>{
     const d=new Date(inv.createdDate||0);
-    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"00")}`;
+    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
     m[k]=m[k]||{rev:0,orders:0}; m[k].rev+=inv._ng; m[k].orders++;
   });
   const keys=Object.keys(m).sort();
