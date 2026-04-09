@@ -149,23 +149,21 @@ async function loadData() {
   document.getElementById("app").style.display="none";
   document.getElementById("errorBox").style.display="none";
   try {
-    // Step 1: Fetch all branches to find gym branch IDs
-    document.getElementById("loadMsg").textContent="Loading branch list…";
-    const branches = await apiFetch("Branches");
-    
-    // Build map of branchId → name for gym branches only
-    gymBranchMap = {};
-    branches.forEach(b => {
-      const name = (b.name||b.branchName||"").trim();
-      if (name.toLowerCase().includes("ryderwear gym")) {
-        // Clean up name: "Ryderwear Gym - Alberton, SA" → "Alberton, SA"
-        const clean = name.replace(/ryderwear gym\s*[-–]\s*/i,"").trim();
-        gymBranchMap[b.id] = clean;
-      }
-    });
-
+    // Hardcoded gym branch map from Cin7 Branches API
+    gymBranchMap = {
+      401072: "Flinders Park, SA",
+      660561: "Tranmere, SA",
+      661430: "Midvale, WA",
+      670812: "Malaga, WA",
+      670813: "Alberton, SA",
+      735636: "Hackham, SA",
+      751793: "Wanneroo, WA",
+      800476: "Maddington, WA",
+      809004: "Munno Para, SA",
+      855500: "Rockingham, WA",
+      891359: "Mandurah, WA"
+    };
     const gymBranchIds = Object.keys(gymBranchMap).map(Number);
-    if (!gymBranchIds.length) throw new Error("No gym branches found in Cin7. Check branch names contain 'Ryderwear Gym'.");
 
     document.getElementById("loadMsg").textContent=`Found ${gymBranchIds.length} gym locations. Loading orders…`;
 
