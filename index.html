@@ -139,7 +139,7 @@ const GYM_BRANCH_MAP = {
 const GYM_IDS  = Object.keys(GYM_BRANCH_MAP).map(Number);
 const GYM_KW   = ["lifting strap","resistance band","chalk","wrist wrap","figure-8","foam roller","dip belt","knee sleeve","lifting belt","gym bag","weightlifting belt","foam roller"];
 const PAL      = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const TOTAL_PAGES = 150; // ~37,500 orders ≈ 5–6 months
+const HISTORY_MONTHS = 12;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const $m   = v => "$"+Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -163,13 +163,25 @@ const mLabel=k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString
 let allOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
-async function fetchPage(page){
-  const where=`branchId IN (${GYM_IDS.join(",")})`;
-  const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page,where});
-  const r=await fetch(`/api/cin7?${qs}`);
-  if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  const d=await r.json();
-  return Array.isArray(d)?d:(d.data||[]);
+async function fetchGymOrders(branchId) {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
+  const orders = [];
+  let page = 1;
+  while (page <= 40) {
+    const qs = new URLSearchParams({endpoint:"SalesOrders", rows:250, page, where:`branchId=${branchId}`});
+    const r  = await fetch(`/api/cin7?${qs}`);
+    if (!r.ok) break;
+    const d  = await r.json();
+    const rows = Array.isArray(d) ? d : (d.data||[]);
+    if (!rows.length) break;
+    orders.push(...rows);
+    const lastDate = new Date(rows[rows.length-1].createdDate||0);
+    if (lastDate < cutoff || rows.length < 250) break;
+    page++;
+    await sleep(350);
+  }
+  return orders;
 }
 
 async function loadData(){
@@ -178,25 +190,20 @@ async function loadData(){
   document.getElementById("errorBox").style.display="none";
   document.getElementById("progFill").style.width="0%";
   allOrders=[];
-
   try{
-    let done=false, collected=0;
-    // Fetch in parallel batches of 3
-    for(let p=1; p<=TOTAL_PAGES && !done; p+=3){
-      const batch=[p,p+1,p+2].filter(x=>x<=TOTAL_PAGES);
-      const pct_=Math.round((p/TOTAL_PAGES)*100);
-      document.getElementById("loadMsg").textContent=`Loading gym orders… ${collected.toLocaleString()} found`;
-      document.getElementById("progFill").style.width=pct_+"%";
-
-      const results=await Promise.all(batch.map(pg=>fetchPage(pg).catch(()=>[])));
-      for(let i=0;i<results.length;i++){
-        allOrders=allOrders.concat(results[i]);
-        collected+=results[i].length;
-        if(results[i].length<250){done=true;break;}
-      }
-      if(!done) await sleep(400);
+    const entries=Object.entries(GYM_BRANCH_MAP);
+    let all=[];
+    for(let i=0;i<entries.length;i+=3){
+      const batch=entries.slice(i,i+3);
+      const prog=Math.round((i/entries.length)*100);
+      document.getElementById("progFill").style.width=prog+"%";
+      document.getElementById("loadMsg").textContent=
+        `Loading ${batch.map(([,n])=>n.split(",")[0]).join(", ")}…`;
+      const results=await Promise.all(batch.map(([id])=>fetchGymOrders(id)));
+      results.forEach(r=>all.push(...r));
     }
-
+    document.getElementById("progFill").style.width="100%";
+    allOrders=all;
     document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
     document.getElementById("loading").style.display="none";
     document.getElementById("app").style.display="block";
