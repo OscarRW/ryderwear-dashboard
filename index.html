@@ -145,7 +145,8 @@ function getBranchName(inv) {
   const email = (inv.branchEmail || "").toLowerCase();
   if (!email.includes("ryderweargym.com")) return null;
   const local = email.split("@")[0];
-  return BRANCH_NAMES[local] || local;
+  // Only return known branches — filter out test/invalid emails like "hello"
+  return BRANCH_NAMES[local] || null;
 }
 
 // Is this a gym location order?
