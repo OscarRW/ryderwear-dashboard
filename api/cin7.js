@@ -16,7 +16,7 @@ module.exports = function handler(req, res) {
   const params = new URLSearchParams();
   params.set("rows", rows);
   params.set("page", page);
-  params.set("order", "createdDate ASC");
+  params.set("order", "createdDate DESC");
   if (from && to) {
     params.set("where", `createdDate>='${from}' AND createdDate<'${to}'`);
   } else if (from) {
