@@ -151,7 +151,7 @@ async function loadData(){
     let page=1,all=[];
     while(page<=20){
       document.getElementById("loadMsg").textContent=`Loading invoices — page ${page}…`;
-      const rows=await cin7("SaleInvoice",page);
+      const rows=await cin7("saleInvoice",page);
       if(!rows.length)break;
       all=all.concat(rows.filter(i=>!isExcl(i)));
       if(rows.length<250)break;
