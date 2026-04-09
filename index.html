@@ -163,22 +163,28 @@ async function loadData() {
       855500: "Rockingham, WA",
       891359: "Mandurah, WA"
     };
-    const gymBranchIds = Object.keys(gymBranchMap).map(Number);
+    const gymBranchIds = Object.keys(gymBranchMap).join(",");
+    document.getElementById("loadMsg").textContent="Loading gym orders…";
 
-    document.getElementById("loadMsg").textContent=`Found ${gymBranchIds.length} gym locations. Loading orders…`;
-
-    // Step 2: Fetch orders, filter by gym branchId
+    // Filter by branchId directly in Cin7 — much faster
     let all=[], page=1;
-    while (page<=80) {
-      document.getElementById("loadMsg").textContent=`Loading orders — page ${page} (${all.length} gym orders found)…`;
-      const rows = await apiFetch("SalesOrders", {page});
-      if (!rows.length) break;
-      rows.forEach(inv => {
-        if (gymBranchIds.includes(inv.branchId)) all.push(inv);
+    while (page<=20) {
+      document.getElementById("loadMsg").textContent=`Loading gym orders — page ${page} (${all.length} found)…`;
+      const qs = new URLSearchParams({
+        endpoint: "SalesOrders",
+        rows: 250,
+        page,
+        where: `branchId IN (${gymBranchIds})`
       });
-      if (rows.length<250) break;
+      const r = await fetch(`/api/cin7?${qs}`);
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      const d = await r.json();
+      const rows = Array.isArray(d) ? d : (d.data||[]);
+      if (!rows.length) break;
+      all = all.concat(rows);
+      if (rows.length < 250) break;
       page++;
-      if (page%3===0) await sleep(300); // rate limit: pause every 3 pages
+      await sleep(300);
     }
 
     gymOrders = all;
