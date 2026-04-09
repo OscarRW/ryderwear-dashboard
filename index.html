@@ -100,6 +100,7 @@ button:hover{background:#2a2a3e}
       </div>
       <div class="chart-wrap"><canvas id="momChart"></canvas></div>
       <div class="summary" id="momSummary"></div>
+      <div id="momLoadMsg" style="font-size:12px;color:#6366f1;margin-top:6px;min-height:16px"></div>
     </div>
     <div class="card" style="margin-bottom:0">
       <div class="card-header">
@@ -145,12 +146,54 @@ function isoWeek(d) {
 const wLabel = k => { const[y,w]=k.split("-W"); return `W${w}'${y.slice(2)}`; };
 const mLabel = k => { const[y,m]=k.split("-"); return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"}); };
 
-let gymOrders=[], gymBranchMap={}, momLoc=0, wowLoc=0, momC, wowC, locC;
+let gymOrders=[], gymBranchMap={}, loadedDays=90, momLoc=0, wowLoc=0, momC, wowC, locC;
 
-function getMomFiltered() {
-  const days = parseInt(document.getElementById("momPeriodSel").value);
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-days);
-  return gymOrders.filter(inv => new Date(inv.createdDate||0) >= cutoff);
+async function loadMoreHistory(targetDays) {
+  if (targetDays <= loadedDays) return;
+  const gymBranchIds = Object.keys(gymBranchMap).join(",");
+
+  // Figure out which months we still need
+  const now = new Date();
+  const alreadyFrom = new Date(); alreadyFrom.setDate(alreadyFrom.getDate() - loadedDays);
+  const needFrom   = new Date(); needFrom.setDate(needFrom.getDate() - targetDays);
+
+  // Build list of months between needFrom and alreadyFrom
+  const months = [];
+  let cur = new Date(needFrom.getFullYear(), needFrom.getMonth(), 1);
+  const stop = new Date(alreadyFrom.getFullYear(), alreadyFrom.getMonth(), 1);
+  while (cur < stop) {
+    months.push({ year: cur.getFullYear(), month: cur.getMonth() + 1 });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+
+  let added = [];
+  for (const { year, month } of months) {
+    const nextM = month === 12 ? 1 : month + 1;
+    const nextY = month === 12 ? year + 1 : year;
+    const from  = `${year}-${String(month).padStart(2,"0")}-01T00:00:00Z`;
+    const to    = `${nextY}-${String(nextM).padStart(2,"0")}-01T00:00:00Z`;
+    const where = `branchId IN (${gymBranchIds}) AND createdDate>='${from}' AND createdDate<'${to}'`;
+    const label = new Date(year, month-1, 1).toLocaleString("en-AU",{month:"long",year:"numeric"});
+    document.getElementById("momLoadMsg").textContent = `Loading ${label}…`;
+
+    let page = 1;
+    while (page <= 25) {
+      const qs = new URLSearchParams({endpoint:"SalesOrders", rows:250, page, where});
+      const r  = await fetch(`/api/cin7?${qs}`);
+      const d  = await r.json();
+      const rows = Array.isArray(d) ? d : (d.data||[]);
+      if (!rows.length) break;
+      added = added.concat(rows);
+      if (rows.length < 250) break;
+      page++;
+      await sleep(350);
+    }
+    await sleep(200);
+  }
+
+  gymOrders  = [...gymOrders, ...added];
+  loadedDays = targetDays;
+  document.getElementById("momLoadMsg").textContent = "";
 }
 
 async function apiFetch(endpoint, params={}) {
