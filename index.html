@@ -127,7 +127,8 @@ const pct = v => (v>=0?"+":"")+v.toFixed(1)+"%";
 const pill= v => `<span class="pill ${v>=0?'up':'dn'}">${pct(v)}</span>`;
 const growth=(a,b)=>b>0?((a-b)/b)*100:0;
 const isGym = li=>(li.productCategoryName||li.categoryName||li.category||"").toLowerCase()===GYM_CAT;
-const isExcl= inv=>EXCL_LOC.includes((inv.branchName||inv.locationName||inv.location||"").toLowerCase());
+const getLoc = inv=>inv.branchName||inv.projectName||inv.location||"Unknown";
+const isExcl= inv=>EXCL_LOC.includes(getLoc(inv).toLowerCase());
 
 const isoWeek=d=>{const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+4-(t.getDay()||7));const y=t.getFullYear();return`${y}-W${String(Math.ceil(((t-new Date(y,0,1))/864e5+1)/7)).padStart(2,"0")}`;};
 const wLabel=k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
@@ -151,7 +152,7 @@ async function loadData(){
     let page=1,all=[];
     while(page<=20){
       document.getElementById("loadMsg").textContent=`Loading invoices — page ${page}…`;
-      const rows=await cin7("saleInvoice",page);
+      const rows=await cin7("SalesOrders",page);
       if(!rows.length)break;
       all=all.concat(rows.filter(i=>!isExcl(i)));
       if(rows.length<250)break;
@@ -181,9 +182,9 @@ function getInvoices(period){
 function enrich(invoices){
   return invoices.map(inv=>{
     const lines=inv.lineItems||inv.lines||inv.saleOrderLines||[];
-    if(!lines.length){const t=parseFloat(inv.total||inv.totalAmount||0);return{...inv,_ng:t,_gym:0};}
-    const ng=lines.filter(l=>!isGym(l)).reduce((s,l)=>s+parseFloat(l.lineTotal||l.total||0),0);
-    const gm=lines.filter(l=>isGym(l)).reduce((s,l) =>s+parseFloat(l.lineTotal||l.total||0),0);
+    if(!lines.length){const t=parseFloat(inv.total||inv.totalAmount||0);return{...inv,_ng:t,_gym:0,_loc:getLoc(inv)};}
+    const ng=lines.filter(l=>!isGym(l)).reduce((s,l)=>s+parseFloat(l.lineTotal||l.unitPrice*(l.qty||1)||0),0);
+    const gm=lines.filter(l=>isGym(l)).reduce((s,l)=>s+parseFloat(l.lineTotal||l.unitPrice*(l.qty||1)||0),0);
     return{...inv,_ng:ng,_gym:gm};
   });
 }
