@@ -114,19 +114,6 @@ button:hover{background:#2a2a3e}
 </div>
 
 <script>
-const BRANCH_NAMES = {
-  "tranmere":    "Tranmere, SA",
-  "alberton":    "Alberton, SA",
-  "flinderspark":"Flinders Park, SA",
-  "hackham":     "Hackham, SA",
-  "maddington":  "Maddington, WA",
-  "malaga":      "Malaga, WA",
-  "mandurah":    "Mandurah, WA",
-  "midvale":     "Midvale, WA",
-  "munnopara":   "Munno Para, SA",
-  "rockingham":  "Rockingham, WA",
-  "wanneroo":    "Wanneroo, WA"
-};
 const GYM_KEYWORDS = ["lifting strap","resistance band","chalk","wrist wrap","figure-8","foam roller","dip belt","knee sleeve","lifting belt","gym bag"];
 const PAL = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
 
@@ -135,16 +122,8 @@ const $k  = v => v>=1e6?"$"+Math.round(v/1e6)+"M":v>=1e3?"$"+Math.round(v/1e3)+"
 const pct = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
 const pill= v => `<span class="pill ${v>=0?"up":"dn"}">${pct(v)}</span>`;
 const grow= (a,b) => b>0?((a-b)/b)*100:0;
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-function getBranchName(inv) {
-  const email = (inv.branchEmail||"").toLowerCase();
-  if (!email.includes("ryderweargym.com")) return null;
-  const local = email.split("@")[0];
-  return BRANCH_NAMES[local] || null;
-}
-const isGymOrder   = inv => getBranchName(inv) !== null;
-const isGymProduct = li  => GYM_KEYWORDS.some(k => (li.name||"").toLowerCase().includes(k));
+const sleep = ms => new Promise(r => setTimeout(r,ms));
+const isGymProduct = li => GYM_KEYWORDS.some(k=>(li.name||"").toLowerCase().includes(k));
 
 function isoWeek(d) {
   const t=new Date(d); t.setHours(0,0,0,0);
@@ -155,33 +134,14 @@ function isoWeek(d) {
 const wLabel = k => { const[y,w]=k.split("-W"); return `W${w}'${y.slice(2)}`; };
 const mLabel = k => { const[y,m]=k.split("-"); return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"}); };
 
-let gymOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
+let gymOrders=[], gymBranchMap={}, momLoc=0, wowLoc=0, momC, wowC, locC;
 
-async function fetchPage(page, from, to) {
-  let url = `/api/cin7?endpoint=SalesOrders&rows=250&page=${page}`;
-  if (from) url += `&from=${encodeURIComponent(from)}`;
-  if (to)   url += `&to=${encodeURIComponent(to)}`;
-  const r = await fetch(url);
+async function apiFetch(endpoint, params={}) {
+  const qs = new URLSearchParams({endpoint, rows:250, page:1, ...params});
+  const r = await fetch(`/api/cin7?${qs}`);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   const d = await r.json();
-  return Array.isArray(d) ? d : (d.data||[]);
-}
-
-async function fetchMonth(year, month) {
-  const y2 = month===12?year+1:year;
-  const m2 = month===12?1:month+1;
-  const from = `${year}-${String(month).padStart(2,"0")}-01T00:00:00Z`;
-  const to   = `${y2}-${String(m2).padStart(2,"0")}-01T00:00:00Z`;
-  let page=1, results=[];
-  while (page<=10) {
-    const rows = await fetchPage(page, from, to);
-    if (!rows.length) break;
-    rows.forEach(inv => { if (isGymOrder(inv)) results.push(inv); });
-    if (rows.length<250) break;
-    page++;
-    await sleep(350);
-  }
-  return results;
+  return Array.isArray(d)?d:(d.data||[]);
 }
 
 async function loadData() {
@@ -189,38 +149,41 @@ async function loadData() {
   document.getElementById("app").style.display="none";
   document.getElementById("errorBox").style.display="none";
   try {
-    // Test if date filter works
-    document.getElementById("loadMsg").textContent="Connecting to Cin7…";
-    const testRows = await fetchPage(1,"2026-03-01T00:00:00Z","2026-04-01T00:00:00Z");
-    const canFilter = Array.isArray(testRows) && testRows.length>0;
+    // Step 1: Fetch all branches to find gym branch IDs
+    document.getElementById("loadMsg").textContent="Loading branch list…";
+    const branches = await apiFetch("Branches");
+    
+    // Build map of branchId → name for gym branches only
+    gymBranchMap = {};
+    branches.forEach(b => {
+      const name = (b.name||b.branchName||"").trim();
+      if (name.toLowerCase().includes("ryderwear gym")) {
+        // Clean up name: "Ryderwear Gym - Alberton, SA" → "Alberton, SA"
+        const clean = name.replace(/ryderwear gym\s*[-–]\s*/i,"").trim();
+        gymBranchMap[b.id] = clean;
+      }
+    });
 
-    let all=[];
-    if (canFilter) {
-      // Fetch month-by-month for last 12 months
-      const now=new Date();
-      for (let i=11; i>=0; i--) {
-        const d=new Date(now.getFullYear(), now.getMonth()-i, 1);
-        const label=d.toLocaleString("en-AU",{month:"long",year:"numeric"});
-        document.getElementById("loadMsg").textContent=`Loading ${label}… (${all.length} orders so far)`;
-        const orders=await fetchMonth(d.getFullYear(), d.getMonth()+1);
-        all=all.concat(orders);
-        await sleep(350);
-      }
-    } else {
-      // Fallback: page through without date filter
-      let page=1;
-      while (page<=80) {
-        document.getElementById("loadMsg").textContent=`Loading page ${page}… (${all.length} gym orders found)`;
-        const rows=await fetchPage(page);
-        if (!rows.length) break;
-        rows.forEach(inv=>{ if(isGymOrder(inv)) all.push(inv); });
-        if (rows.length<250) break;
-        page++;
-        await sleep(350);
-      }
+    const gymBranchIds = Object.keys(gymBranchMap).map(Number);
+    if (!gymBranchIds.length) throw new Error("No gym branches found in Cin7. Check branch names contain 'Ryderwear Gym'.");
+
+    document.getElementById("loadMsg").textContent=`Found ${gymBranchIds.length} gym locations. Loading orders…`;
+
+    // Step 2: Fetch orders, filter by gym branchId
+    let all=[], page=1;
+    while (page<=80) {
+      document.getElementById("loadMsg").textContent=`Loading orders — page ${page} (${all.length} gym orders found)…`;
+      const rows = await apiFetch("SalesOrders", {page});
+      if (!rows.length) break;
+      rows.forEach(inv => {
+        if (gymBranchIds.includes(inv.branchId)) all.push(inv);
+      });
+      if (rows.length<250) break;
+      page++;
+      if (page%3===0) await sleep(300); // rate limit: pause every 3 pages
     }
 
-    gymOrders=all;
+    gymOrders = all;
     document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
     document.getElementById("loading").style.display="none";
     document.getElementById("app").style.display="block";
@@ -239,8 +202,8 @@ function getFiltered() {
 }
 
 function enrich(inv) {
-  const branch=getBranchName(inv);
-  const lines=inv.lineItems||[];
+  const branch = gymBranchMap[inv.branchId] || "Unknown";
+  const lines = inv.lineItems||[];
   if (!lines.length) return{...inv,_branch:branch,_ng:parseFloat(inv.total||0),_gym:0};
   const ng =lines.filter(l=>!isGymProduct(l)).reduce((s,l)=>s+parseFloat(l.unitPrice||0)*(l.qty||1),0);
   const gym=lines.filter(l=> isGymProduct(l)).reduce((s,l)=>s+parseFloat(l.unitPrice||0)*(l.qty||1),0);
@@ -312,7 +275,7 @@ function renderTopProducts(elId,lines,color) {
 
 function render() {
   const filtered=getFiltered().map(enrich);
-  const branches=[...new Set(filtered.map(i=>i._branch).filter(Boolean))].sort();
+  const branches=[...new Set(filtered.map(i=>i._branch).filter(b=>b&&b!=="Unknown"))].sort();
   if(momLoc>branches.length) momLoc=0;
   if(wowLoc>branches.length) wowLoc=0;
   makeBtns("momBtns",branches,momLoc,i=>{momLoc=i;render();});
