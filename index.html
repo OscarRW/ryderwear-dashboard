@@ -14,12 +14,11 @@
   select,button{background:#1e1e2e;color:#fff;border:1px solid #2a2a3e;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer}
   button:hover{background:#2a2a3e}
   .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
-  .kpi{background:#1e1e2e;border-radius:10px;padding:16px 20px;border-left:4px solid #6366f1}
+  .kpi{background:#1e1e2e;border-radius:10px;padding:16px 20px}
   .kpi-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
   .kpi-value{font-size:22px;font-weight:600;display:flex;align-items:center;gap:8px}
   .pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
-  .up{background:#10b98122;color:#10b981}
-  .dn{background:#ef444422;color:#ef4444}
+  .up{background:#10b98122;color:#10b981}.dn{background:#ef444422;color:#ef4444}
   .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
   .card{background:#1e1e2e;border-radius:12px;padding:20px}
   .card-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
@@ -29,8 +28,7 @@
   .bb.active{background:#2a2a3e;color:#fff;border-color:#444}
   .bb:hover{background:#252538}
   .chart-wrap{position:relative;height:200px}
-  .summary{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap}
-  .summary span{font-size:12px;color:#666}
+  .summary{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;font-size:12px;color:#666}
   .summary b{color:#fff;font-weight:600}
   .top-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   .top-rank{font-size:11px;color:#444;width:18px;text-align:right;flex-shrink:0}
@@ -39,14 +37,14 @@
   .bar-fill{height:3px;border-radius:4px}
   .top-val{font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0;min-width:80px;text-align:right}
   .top-qty{font-size:11px;color:#444;width:50px;text-align:right;flex-shrink:0}
-  .loc-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px}
+  .loc-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px}
   .spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px}
   .spin{width:40px;height:40px;border:3px solid #2a2a3e;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
   .error-box{background:#1e1e2e;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:480px;margin:80px auto;text-align:center}
   #app{display:none}
-  @media(max-width:700px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-row{grid-template-columns:1fr}.top-grid{grid-template-columns:1fr}}
   .top-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:700px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-row{grid-template-columns:1fr}.top-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -55,7 +53,6 @@
   <div class="spin"></div>
   <div id="loadMsg" style="color:#666;font-size:14px">Connecting to Cin7…</div>
 </div>
-
 <div id="errorBox" class="error-box" style="display:none">
   <div style="font-size:32px;margin-bottom:12px">⚠️</div>
   <div style="color:#ef4444;font-weight:700;margin-bottom:8px">Connection error</div>
@@ -66,23 +63,22 @@
 <div id="app">
   <h1>Ryderwear AU — Sales analytics</h1>
   <div class="sub" id="subline">Live from Cin7</div>
-
   <div class="toolbar">
     <select id="perSel">
-      <option value="90">Last 90 days</option>
+      <option value="30">Last 30 days</option>
+      <option value="90" selected>Last 90 days</option>
       <option value="180">Last 6 months</option>
       <option value="365">Last 12 months</option>
-      <option value="all">All time</option>
     </select>
     <button onclick="loadData()">↻ Refresh</button>
     <span id="lastRefresh" style="font-size:12px;color:#444;margin-left:4px"></span>
   </div>
 
   <div class="kpi-grid">
-    <div class="kpi" style="border-color:#6366f1"><div class="kpi-label">Revenue (ex gym)</div><div class="kpi-value" id="kRev">—</div></div>
-    <div class="kpi" style="border-color:#10b981"><div class="kpi-label">Orders</div><div class="kpi-value" id="kOrd">—</div></div>
-    <div class="kpi" style="border-color:#f59e0b"><div class="kpi-label">MoM growth</div><div class="kpi-value" id="kMoM">—</div></div>
-    <div class="kpi" style="border-color:#ec4899"><div class="kpi-label">WoW growth</div><div class="kpi-value" id="kWoW">—</div></div>
+    <div class="kpi" style="border-left:4px solid #6366f1"><div class="kpi-label">Revenue (ex gym)</div><div class="kpi-value" id="kRev">—</div></div>
+    <div class="kpi" style="border-left:4px solid #10b981"><div class="kpi-label">Orders</div><div class="kpi-value" id="kOrd">—</div></div>
+    <div class="kpi" style="border-left:4px solid #f59e0b"><div class="kpi-label">MoM growth</div><div class="kpi-value" id="kMoM">—</div></div>
+    <div class="kpi" style="border-left:4px solid #ec4899"><div class="kpi-label">WoW growth</div><div class="kpi-value" id="kWoW">—</div></div>
   </div>
 
   <div class="charts-row">
@@ -117,127 +113,159 @@
 </div>
 
 <script>
-const GYM_CAT   = "gym products";
-const EXCL_LOC  = ["international warehouse"];
-const PAL       = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6"];
+// ── Config ────────────────────────────────────────────────────────────────────
+const EXCL_SRC  = ["international warehouse","international picking warehouse"];
+const GYM_WORDS = ["gym","lifting strap","resistance band","chalk","wrist wrap","figure-8","foam roller","dip belt","knee sleeve","lifting belt"];
 
-const $m  = v => "$" + Math.round(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const $m  = v => "$" + Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
 const $k  = v => v>=1e6?"$"+Math.round(v/1e6)+"M":v>=1e3?"$"+Math.round(v/1e3)+"k":"$"+Math.round(v||0);
-const pct = v => (v>=0?"+":"")+v.toFixed(1)+"%";
+const pct = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
 const pill= v => `<span class="pill ${v>=0?'up':'dn'}">${pct(v)}</span>`;
-const growth=(a,b)=>b>0?((a-b)/b)*100:0;
-const isGym = li=>(li.productCategoryName||li.categoryName||li.category||"").toLowerCase()===GYM_CAT;
-const getLoc = inv=>inv.branchName||inv.projectName||inv.location||"Unknown";
-const isExcl= inv=>EXCL_LOC.includes(getLoc(inv).toLowerCase());
+const grow= (a,b) => b>0?((a-b)/b)*100:0;
 
-const isoWeek=d=>{const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+4-(t.getDay()||7));const y=t.getFullYear();return`${y}-W${String(Math.ceil(((t-new Date(y,0,1))/864e5+1)/7)).padStart(2,"0")}`;};
-const wLabel=k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
-const mLabel=k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
+const getSrc  = inv => inv.source || inv.projectName || inv.branchName || "Unknown";
+const isExcl  = inv => EXCL_SRC.some(e => getSrc(inv).toLowerCase().includes(e));
+const isGymLi = li  => GYM_WORDS.some(w => (li.name||"").toLowerCase().includes(w));
 
+const isoWeek = d => {
+  const t=new Date(d); t.setHours(0,0,0,0);
+  t.setDate(t.getDate()+4-(t.getDay()||7));
+  const y=t.getFullYear();
+  return `${y}-W${String(Math.ceil(((t-new Date(y,0,1))/864e5+1)/7)).padStart(2,"0")}`;
+};
+const wLabel = k => { const[y,w]=k.split("-W"); return `W${w}'${y.slice(2)}`; };
+const mLabel = k => { const[y,m]=k.split("-"); return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"}); };
+
+const PAL = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
+
+// ── State ────────────────────────────────────────────────────────────────────
 let allInvoices=[], momLoc=0, wowLoc=0;
-let momC,wowC,locC;
+let momC, wowC, locC;
 
-async function cin7(endpoint,page=1){
-  const r=await fetch(`/api/cin7?endpoint=${endpoint}&rows=250&page=${page}`);
-  if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);
-  const d=await r.json();
-  return Array.isArray(d)?d:(d.data||[]);
+// ── API ───────────────────────────────────────────────────────────────────────
+async function cin7(endpoint, page=1) {
+  const r = await fetch(`/api/cin7?endpoint=${endpoint}&rows=250&page=${page}`);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  const d = await r.json();
+  return Array.isArray(d) ? d : (d.data || []);
 }
 
-async function loadData(){
+async function loadData() {
   document.getElementById("loading").style.display="flex";
   document.getElementById("app").style.display="none";
   document.getElementById("errorBox").style.display="none";
-  try{
-    let page=1,all=[];
-    while(page<=20){
-      document.getElementById("loadMsg").textContent=`Loading invoices — page ${page}…`;
-      const rows=await cin7("SalesOrders",page);
-      if(!rows.length)break;
-      all=all.concat(rows.filter(i=>!isExcl(i)));
-      if(rows.length<250)break;
+  try {
+    // Fetch with date filter to get more history efficiently
+    const period = document.getElementById("perSel").value;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - parseInt(period) - 10);
+    const dateStr = cutoffDate.toISOString().split("T")[0] + "T00:00:00Z";
+
+    let page=1, all=[];
+    while(page<=40){
+      document.getElementById("loadMsg").textContent=`Loading orders — page ${page}…`;
+      const rows = await cin7(`SalesOrders?where=createdDate>='${encodeURIComponent(dateStr)}'`, page);
+      if(!rows.length) break;
+      all = all.concat(rows.filter(i=>!isExcl(i)));
+      if(rows.length<250) break;
       page++;
     }
-    allInvoices=all;
-    document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
+    allInvoices = all;
+    document.getElementById("lastRefresh").textContent = "Updated "+new Date().toLocaleTimeString("en-AU");
     document.getElementById("loading").style.display="none";
     document.getElementById("app").style.display="block";
     render();
-  }catch(e){
+  } catch(e) {
     document.getElementById("loading").style.display="none";
     document.getElementById("errorBox").style.display="block";
-    document.getElementById("errMsg").textContent=e.message;
+    document.getElementById("errMsg").textContent = e.message;
   }
 }
 
-function getInvoices(period){
-  if(period==="all")return allInvoices;
-  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-parseInt(period));
-  return allInvoices.filter(inv=>{
-    const d=new Date(inv.createdDate||inv.invoiceDate||inv.modifiedDate||0);
-    return d>=cutoff;
+// ── Data processing ───────────────────────────────────────────────────────────
+function getFiltered() {
+  const period = document.getElementById("perSel").value;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-parseInt(period));
+  return allInvoices.filter(inv => new Date(inv.createdDate||0) >= cutoff);
+}
+
+function enrich(invoices) {
+  return invoices.map(inv => {
+    const lines = inv.lineItems || [];
+    const src = getSrc(inv);
+    if (!lines.length) {
+      const t = parseFloat(inv.total||0);
+      return {...inv, _ng:t, _gym:0, _src:src};
+    }
+    const ng  = lines.filter(l=>!isGymLi(l)).reduce((s,l)=>s+parseFloat(l.unitPrice||0)*(l.qty||1),0);
+    const gym = lines.filter(l=>isGymLi(l)).reduce((s,l)=>s+parseFloat(l.unitPrice||0)*(l.qty||1),0);
+    return {...inv, _ng:ng, _gym:gym, _src:src};
   });
 }
 
-function enrich(invoices){
-  return invoices.map(inv=>{
-    const lines=inv.lineItems||inv.lines||inv.saleOrderLines||[];
-    if(!lines.length){const t=parseFloat(inv.total||inv.totalAmount||0);return{...inv,_ng:t,_gym:0,_loc:getLoc(inv)};}
-    const ng=lines.filter(l=>!isGym(l)).reduce((s,l)=>s+parseFloat(l.lineTotal||l.unitPrice*(l.qty||1)||0),0);
-    const gm=lines.filter(l=>isGym(l)).reduce((s,l)=>s+parseFloat(l.lineTotal||l.unitPrice*(l.qty||1)||0),0);
-    return{...inv,_ng:ng,_gym:gm};
-  });
+function byLoc(invs, locName) {
+  return locName==="all" ? invs : invs.filter(i=>i._src===locName);
 }
 
-function byLocFilter(invs,locName){
-  if(locName==="all")return invs;
-  return invs.filter(i=>(i.branchName||i.locationName||i.location||"Unknown")===locName);
-}
-
-function calcMoM(invs){
+function calcMoM(invs) {
   const m={};
   invs.forEach(inv=>{
-    const d=new Date(inv.createdDate||inv.invoiceDate||inv.modifiedDate||0);
+    const d=new Date(inv.createdDate||0);
     const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    m[k]=m[k]||{rev:0,orders:0};m[k].rev+=inv._ng;m[k].orders+=1;
+    m[k]=m[k]||{rev:0,orders:0}; m[k].rev+=inv._ng; m[k].orders+=1;
   });
   const keys=Object.keys(m).sort();
-  return keys.map((k,i)=>({label:mLabel(k),revenue:m[k].rev,orders:m[k].orders,prev:i>0?m[keys[i-1]].rev:0,growth:i>0?growth(m[k].rev,m[keys[i-1]].rev):0}));
+  return keys.map((k,i)=>({
+    label:mLabel(k), revenue:m[k].rev, orders:m[k].orders,
+    prev:i>0?m[keys[i-1]].rev:0,
+    growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0
+  }));
 }
 
-function calcWoW(invs){
+function calcWoW(invs) {
   const w={};
   invs.forEach(inv=>{
-    const d=new Date(inv.createdDate||inv.invoiceDate||inv.modifiedDate||0);
-    const k=isoWeek(d);
-    w[k]=w[k]||{rev:0,orders:0};w[k].rev+=inv._ng;w[k].orders+=1;
+    const k=isoWeek(new Date(inv.createdDate||0));
+    w[k]=w[k]||{rev:0,orders:0}; w[k].rev+=inv._ng; w[k].orders+=1;
   });
   const keys=Object.keys(w).sort().slice(-16);
-  return keys.map((k,i,arr)=>({label:wLabel(k),revenue:w[k].rev,orders:w[k].orders,prev:i>0?w[arr[i-1]].rev:0,growth:i>0?growth(w[k].rev,w[arr[i-1]].rev):0}));
+  return keys.map((k,i,arr)=>({
+    label:wLabel(k), revenue:w[k].rev, orders:w[k].orders,
+    prev:i>0?w[arr[i-1]].rev:0,
+    growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0
+  }));
 }
 
-function makeChart(id,labels,data,existing){
-  const colors=data.map((v,i)=>i===0?"#6366f1":v>=(data[i-1]||0)?"#10b981":"#ef4444");
-  if(existing)existing.destroy();
+// ── Charts ────────────────────────────────────────────────────────────────────
+function makeChart(id, labels, data, existing) {
+  const colors = data.map((v,i)=>i===0?"#6366f1":v>=(data[i-1]||0)?"#10b981":"#ef4444");
+  if(existing) existing.destroy();
   return new Chart(document.getElementById(id),{
     type:"bar",
     data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4,maxBarThickness:44}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},
+        y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}
+      }}
   });
 }
 
-function makeBtns(containerId,locs,active,cb){
+function makeBtns(containerId, locs, active, cb) {
   const el=document.getElementById(containerId);
-  el.innerHTML=["All locations",...locs].map((l,i)=>`<button class="bb${i===active?' active':''}" data-i="${i}">${l}</button>`).join('');
+  el.innerHTML=["All locations",...locs].map((l,i)=>
+    `<button class="bb${i===active?" active":""}" data-i="${i}">${l}</button>`).join('');
   el.querySelectorAll(".bb").forEach(b=>b.addEventListener("click",()=>cb(+b.dataset.i)));
 }
 
-function topProducts(lines,color,elId){
+function topProducts(lines, color, elId) {
   const m={};
   lines.forEach(li=>{
-    const name=li.name||li.productName||li.description||"Unknown";
+    const name=li.name||li.description||"Unknown";
     m[name]=m[name]||{name,total:0,qty:0};
-    m[name].total+=parseFloat(li.lineTotal||li.total||0);
+    m[name].total+=parseFloat(li.unitPrice||0)*(li.qty||1);
     m[name].qty+=parseFloat(li.qty||0);
   });
   const data=Object.values(m).filter(r=>r.total>0).sort((a,b)=>b.total-a.total).slice(0,15);
@@ -254,61 +282,64 @@ function topProducts(lines,color,elId){
     </div>`).join(''):'<div style="color:#444;text-align:center;padding:32px">No data</div>';
 }
 
-function render(){
-  const period=document.getElementById("perSel").value;
-  const invs=enrich(getInvoices(period));
-  const locs=[...new Set(invs.map(i=>i.branchName||i.locationName||i.location||"Unknown"))].filter(Boolean).sort();
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const invs = enrich(getFiltered());
+  const locs = [...new Set(invs.map(i=>i._src))].filter(Boolean).sort();
 
-  // clamp selections
-  if(momLoc>locs.length)momLoc=0;
-  if(wowLoc>locs.length)wowLoc=0;
+  if(momLoc>locs.length) momLoc=0;
+  if(wowLoc>locs.length) wowLoc=0;
 
-  const momInvs=byLocFilter(invs,momLoc===0?"all":locs[momLoc-1]);
-  const wowInvs=byLocFilter(invs,wowLoc===0?"all":locs[wowLoc-1]);
-
-  // branch buttons
   makeBtns("momBtns",locs,momLoc,i=>{momLoc=i;render();});
   makeBtns("wowBtns",locs,wowLoc,i=>{wowLoc=i;render();});
 
+  const momInvs = byLoc(invs, momLoc===0?"all":locs[momLoc-1]);
+  const wowInvs = byLoc(invs, wowLoc===0?"all":locs[wowLoc-1]);
+
   // MoM
-  const momData=calcMoM(momInvs);
-  momC=makeChart("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
+  const momData = calcMoM(momInvs);
+  momC = makeChart("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
   const m3=momData.slice(-3);
-  document.getElementById("momSummary").innerHTML=m3.map((d,i)=>`<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
+  document.getElementById("momSummary").innerHTML=m3.map((d,i)=>
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
   // WoW
-  const wowData=calcWoW(wowInvs);
-  wowC=makeChart("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
+  const wowData = calcWoW(wowInvs);
+  wowC = makeChart("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
   const w3=wowData.slice(-3);
-  document.getElementById("wowSummary").innerHTML=w3.map((d,i)=>`<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
+  document.getElementById("wowSummary").innerHTML=w3.map((d,i)=>
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
-  // KPIs (all locations)
-  const totalNGRev=invs.reduce((s,i)=>s+i._ng,0);
-  const momLast=momData.length>=2?momData[momData.length-1].growth:null;
-  const wowLast=wowData.length>=2?wowData[wowData.length-1].growth:null;
-  document.getElementById("kRev").innerHTML=$m(totalNGRev);
+  // KPIs
+  const totalRev = invs.reduce((s,i)=>s+i._ng,0);
+  const momLast  = momData.length>=2?momData[momData.length-1].growth:null;
+  const wowLast  = wowData.length>=2?wowData[wowData.length-1].growth:null;
+  document.getElementById("kRev").innerHTML=$m(totalRev);
   document.getElementById("kOrd").innerHTML=invs.length.toLocaleString("en-AU");
   document.getElementById("kMoM").innerHTML=momLast!=null?pill(momLast):"—";
   document.getElementById("kWoW").innerHTML=wowLast!=null?pill(wowLast):"—";
-  document.getElementById("subline").textContent=`${invs.length.toLocaleString()} invoices · ${locs.length} location${locs.length!==1?"s":""} · live from Cin7`;
+  document.getElementById("subline").textContent=`${invs.length.toLocaleString()} orders · ${locs.length} location${locs.length!==1?"s":""} · live from Cin7`;
 
-  // By location chart
-  const locRevs=locs.map(l=>invs.filter(i=>(i.branchName||i.locationName||i.location||"Unknown")===l).reduce((s,i)=>s+i._ng,0));
-  if(locC)locC.destroy();
-  locC=new Chart(document.getElementById("locChart"),{
+  // By location
+  const locRevs = locs.map(l=>invs.filter(i=>i._src===l).reduce((s,i)=>s+i._ng,0));
+  if(locC) locC.destroy();
+  locC = new Chart(document.getElementById("locChart"),{
     type:"bar",
     data:{labels:locs,datasets:[{data:locRevs,backgroundColor:locs.map((_,i)=>PAL[i%PAL.length]),borderRadius:4,maxBarThickness:60}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:11}}},y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
+      scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:10},maxRotation:45}},y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
   });
-  document.getElementById("locLegend").innerHTML=locs.map((l,i)=>`<div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:50%;background:${PAL[i%PAL.length]};flex-shrink:0"></div><span style="font-size:12px;color:#888">${l}:</span><span style="font-size:12px;font-weight:600"> ${$m(locRevs[i])}</span></div>`).join('');
+  document.getElementById("locLegend").innerHTML=locs.map((l,i)=>
+    `<div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:50%;background:${PAL[i%PAL.length]};flex-shrink:0"></div><span style="color:#888">${l}:</span><span style="font-weight:600"> ${$m(locRevs[i])}</span></div>`).join('');
 
   // Top products
-  const allLines=invs.flatMap(inv=>(inv.lineItems||inv.lines||inv.saleOrderLines||[]).map(li=>({...li,_gym:isGym(li)})));
+  const allLines = invs.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gym:isGymLi(li)})));
   topProducts(allLines.filter(l=>!l._gym),"#6366f1","topNG");
   topProducts(allLines.filter(l=>l._gym),"#10b981","topGym");
 }
 
-document.getElementById("perSel").addEventListener("change",render);
+document.getElementById("perSel").addEventListener("change",()=>loadData());
 loadData();
 </script>
 </body>
