@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/api/cin7", "destination": "/api/cin7" }
+  ]
+}
