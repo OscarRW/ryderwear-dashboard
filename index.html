@@ -164,32 +164,34 @@ async function loadData() {
       891359: "Mandurah, WA"
     };
     const gymBranchIds = Object.keys(gymBranchMap).join(",");
+    const whereClause = `branchId IN (${gymBranchIds})`;
 
-    // Always fetch 12 months — period selector filters client-side
-    const from12 = new Date();
-    from12.setFullYear(from12.getFullYear() - 1);
-    const fromStr = from12.toISOString().replace(/\.\d{3}Z$/, "Z");
-    const whereClause = `branchId IN (${gymBranchIds}) AND createdDate>='${fromStr}'`;
-
+    // Parallel fetch in batches of 3 — stays under Cin7's 3 req/sec limit
     document.getElementById("loadMsg").textContent="Loading gym orders…";
-    let all=[], page=1;
-    while (page<=40) {
-      document.getElementById("loadMsg").textContent=`Loading gym orders — page ${page} (${all.length} found)…`;
-      const qs = new URLSearchParams({
-        endpoint: "SalesOrders",
-        rows: 250,
-        page,
-        where: whereClause
-      });
-      const r = await fetch(`/api/cin7?${qs}`);
-      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-      const d = await r.json();
-      const rows = Array.isArray(d) ? d : (d.data||[]);
-      if (!rows.length) break;
-      all = all.concat(rows);
-      if (rows.length < 250) break;
-      page++;
-      await sleep(300);
+    let all=[], page=1, done=false;
+    const TOTAL_PAGES = 80; // ~20,000 orders ≈ 2-3 months of history
+
+    while (page <= TOTAL_PAGES && !done) {
+      // Fetch 3 pages in parallel
+      const batch = [page, page+1, page+2].filter(p => p <= TOTAL_PAGES);
+      document.getElementById("loadMsg").textContent=
+        `Loading gym orders… ${Math.round((page/TOTAL_PAGES)*100)}% (${all.length.toLocaleString()} orders)`;
+
+      const results = await Promise.all(batch.map(async p => {
+        const qs = new URLSearchParams({endpoint:"SalesOrders", rows:250, page:p, where:whereClause});
+        const r = await fetch(`/api/cin7?${qs}`);
+        if (!r.ok) return [];
+        const d = await r.json();
+        return Array.isArray(d) ? d : (d.data||[]);
+      }));
+
+      for (let i=0; i<results.length; i++) {
+        all = all.concat(results[i]);
+        if (results[i].length < 250) { done=true; break; }
+      }
+
+      page += 3;
+      if (!done) await sleep(400); // 3 requests then 400ms pause = stays under rate limit
     }
 
     gymOrders = all;
