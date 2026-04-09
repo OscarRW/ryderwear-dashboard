@@ -1,40 +1,385 @@
-const https = require("https");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ryderwear Gyms — Sales Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#13131f;color:#fff;padding:24px;min-height:100vh}
+h1{font-size:20px;font-weight:600;margin-bottom:4px}
+.sub{font-size:13px;color:#555;margin-bottom:20px}
+.toolbar{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+select,button{background:#1e1e2e;color:#fff;border:1px solid #2a2a3e;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer}
+button:hover{background:#2a2a3e}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:#1e1e2e;border-radius:10px;padding:16px 20px}
+.kpi-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.kpi-value{font-size:22px;font-weight:600;display:flex;align-items:center;gap:8px}
+.pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
+.up{background:#10b98122;color:#10b981}.dn{background:#ef444422;color:#ef4444}
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.card{background:#1e1e2e;border-radius:12px;padding:20px;margin-bottom:16px}
+.card-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:600;color:#aaa}
+.branch-btns{display:flex;flex-wrap:wrap;gap:4px}
+.bb{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #2a2a3e;background:transparent;color:#666;cursor:pointer;white-space:nowrap}
+.bb.active{background:#2a2a3e;color:#fff;border-color:#444}
+.bb:hover{background:#252538}
+.chart-wrap{position:relative;height:220px}
+.summary{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;font-size:12px;color:#666}
+.summary b{color:#ccc;font-weight:600}
+.top-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.top-rank{font-size:11px;color:#444;width:18px;text-align:right;flex-shrink:0}
+.top-name{font-size:13px;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-wrap{height:3px;background:#252538;border-radius:4px;margin-top:4px}
+.bar-fill{height:3px;border-radius:4px}
+.top-val{font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0;min-width:80px;text-align:right}
+.top-qty{font-size:11px;color:#444;width:50px;text-align:right;flex-shrink:0}
+.loc-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px}
+.spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;gap:16px}
+.spin{width:40px;height:40px;border:3px solid #2a2a3e;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:#1e1e2e;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:480px;margin:80px auto;text-align:center}
+#app{display:none}
+.top-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-row{grid-template-columns:1fr}.top-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
 
-module.exports = function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
+<div id="loading" class="spinner">
+  <div class="spin"></div>
+  <div id="loadMsg" style="color:#666;font-size:14px">Connecting to Cin7…</div>
+</div>
+<div id="errorBox" class="error-box" style="display:none">
+  <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+  <div style="color:#ef4444;font-weight:700;margin-bottom:8px">Connection error</div>
+  <div id="errMsg" style="color:#aaa;font-size:13px;margin-bottom:20px"></div>
+  <button onclick="location.reload()">↻ Retry</button>
+</div>
 
-  const { endpoint, rows = 250, page = 1 } = req.query;
-  if (!endpoint) return res.status(400).json({ error: "Missing endpoint" });
+<div id="app">
+  <h1>Ryderwear Gyms — Sales analytics</h1>
+  <div class="sub" id="subline">Live from Cin7</div>
+  <div class="toolbar">
+    <select id="perSel">
+      <option value="30">Last 30 days</option>
+      <option value="90" selected>Last 90 days</option>
+      <option value="180">Last 6 months</option>
+      <option value="365">Last 12 months</option>
+    </select>
+    <button onclick="loadData()">↻ Refresh</button>
+    <span id="lastRefresh" style="font-size:12px;color:#444;margin-left:4px"></span>
+  </div>
 
-  const auth = Buffer.from(
-    (process.env.CIN7_USER || "") + ":" + (process.env.CIN7_KEY || "")
-  ).toString("base64");
+  <div class="kpi-grid">
+    <div class="kpi" style="border-left:4px solid #6366f1"><div class="kpi-label">Revenue (ex gym products)</div><div class="kpi-value" id="kRev">—</div></div>
+    <div class="kpi" style="border-left:4px solid #10b981"><div class="kpi-label">Orders</div><div class="kpi-value" id="kOrd">—</div></div>
+    <div class="kpi" style="border-left:4px solid #f59e0b"><div class="kpi-label">MoM growth</div><div class="kpi-value" id="kMoM">—</div></div>
+    <div class="kpi" style="border-left:4px solid #ec4899"><div class="kpi-label">WoW growth</div><div class="kpi-value" id="kWoW">—</div></div>
+  </div>
 
-  const options = {
-    hostname: "api.cin7.com",
-    path: `/api/v1/${endpoint}?rows=${rows}&page=${page}`,
-    method: "GET",
-    headers: {
-      Authorization: `Basic ${auth}`,
-      "Content-Type": "application/json",
-    },
-  };
+  <div class="charts-row">
+    <div class="card" style="margin-bottom:0">
+      <div class="card-header">
+        <div class="card-title">Month-on-month revenue (ex gym products)</div>
+        <div class="branch-btns" id="momBtns"></div>
+      </div>
+      <div class="chart-wrap"><canvas id="momChart"></canvas></div>
+      <div class="summary" id="momSummary"></div>
+    </div>
+    <div class="card" style="margin-bottom:0">
+      <div class="card-header">
+        <div class="card-title">Week-on-week revenue (ex gym products)</div>
+        <div class="branch-btns" id="wowBtns"></div>
+      </div>
+      <div class="chart-wrap"><canvas id="wowChart"></canvas></div>
+      <div class="summary" id="wowSummary"></div>
+    </div>
+  </div>
+  <div style="height:16px"></div>
 
-  const request = https.request(options, (r) => {
-    let data = "";
-    r.on("data", (chunk) => (data += chunk));
-    r.on("end", () => {
-      try {
-        res.status(r.statusCode).json(JSON.parse(data));
-      } catch (e) {
-        res.status(500).json({ error: "Parse error", raw: data.slice(0, 200) });
-      }
-    });
-  });
+  <div class="card">
+    <div class="card-header"><div class="card-title">Revenue by gym location (ex gym products)</div></div>
+    <div class="chart-wrap"><canvas id="locChart"></canvas></div>
+    <div class="loc-legend" id="locLegend"></div>
+  </div>
 
-  request.on("error", (e) => res.status(500).json({ error: e.message }));
-  request.end();
+  <div class="top-grid">
+    <div class="card" style="margin-bottom:0"><div class="card-title" style="margin-bottom:14px">Top products — excluding gym products</div><div id="topNG"></div></div>
+    <div class="card" style="margin-bottom:0"><div class="card-title" style="margin-bottom:14px">Top products — gym products only</div><div id="topGym"></div></div>
+  </div>
+</div>
+
+<script>
+// Branch email → display name mapping
+const BRANCH_NAMES = {
+  "tranmere":    "Tranmere, SA",
+  "alberton":    "Alberton, SA",
+  "flinderspark":"Flinders Park, SA",
+  "hackham":     "Hackham, SA",
+  "maddington":  "Maddington, WA",
+  "malaga":      "Malaga, WA",
+  "mandurah":    "Mandurah, WA",
+  "midvale":     "Midvale, WA",
+  "munnopara":   "Munno Para, SA",
+  "rockingham":  "Rockingham, WA",
+  "wanneroo":    "Wanneroo, WA"
 };
+
+// Gym product keywords — items sold IN gyms but are "gym products" category
+const GYM_KEYWORDS = ["lifting strap","resistance band","chalk","wrist wrap","figure-8","foam roller","dip belt","knee sleeve","lifting belt","gym bag"];
+
+// Format helpers
+const $m  = v => "$" + Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
+const $k  = v => v>=1e6?"$"+Math.round(v/1e6)+"M":v>=1e3?"$"+Math.round(v/1e3)+"k":"$"+Math.round(v||0);
+const pct = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
+const pill= v => `<span class="pill ${v>=0?"up":"dn"}">${pct(v)}</span>`;
+const grow= (a,b) => b>0?((a-b)/b)*100:0;
+const PAL = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
+
+// Get branch display name from branchEmail
+function getBranchName(inv) {
+  const email = (inv.branchEmail || "").toLowerCase();
+  if (!email.includes("ryderweargym.com")) return null;
+  const local = email.split("@")[0];
+  // Only return known branches — filter out test/invalid emails like "hello"
+  return BRANCH_NAMES[local] || null;
+}
+
+// Is this a gym location order?
+function isGymOrder(inv) {
+  return getBranchName(inv) !== null;
+}
+
+// Is this line item a "gym product"?
+function isGymProduct(li) {
+  const name = (li.name || "").toLowerCase();
+  return GYM_KEYWORDS.some(k => name.includes(k));
+}
+
+// ISO week key
+function isoWeek(d) {
+  const t = new Date(d); t.setHours(0,0,0,0);
+  t.setDate(t.getDate()+4-(t.getDay()||7));
+  const y = t.getFullYear();
+  return `${y}-W${String(Math.ceil(((t-new Date(y,0,1))/864e5+1)/7)).padStart(2,"0")}`;
+}
+const wLabel = k => { const[y,w]=k.split("-W"); return `W${w}'${y.slice(2)}`; };
+const mLabel = k => { const[y,m]=k.split("-"); return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"}); };
+
+// State
+let gymOrders = [];
+let momLoc = 0, wowLoc = 0;
+let momC, wowC, locC;
+
+// Fetch from Cin7 proxy
+async function cin7(page) {
+  const r = await fetch(`/api/cin7?endpoint=SalesOrders&rows=250&page=${page}`);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  const d = await r.json();
+  return Array.isArray(d) ? d : (d.data || []);
+}
+
+async function loadData() {
+  document.getElementById("loading").style.display = "flex";
+  document.getElementById("app").style.display = "none";
+  document.getElementById("errorBox").style.display = "none";
+
+  try {
+    let page = 1, all = [], done = false;
+    while (page <= 40 && !done) {
+      document.getElementById("loadMsg").textContent = `Loading orders — page ${page}…`;
+      const rows = await cin7(page);
+      if (!rows.length) break;
+
+      // Only keep gym orders
+      rows.forEach(inv => {
+        if (isGymOrder(inv)) all.push(inv);
+      });
+
+      if (rows.length < 250) done = true;
+      page++;
+    }
+
+    gymOrders = all;
+    document.getElementById("lastRefresh").textContent = "Updated " + new Date().toLocaleTimeString("en-AU");
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    render();
+  } catch(e) {
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("errorBox").style.display = "block";
+    document.getElementById("errMsg").textContent = e.message;
+  }
+}
+
+// Filter by date period
+function getFiltered() {
+  const days = parseInt(document.getElementById("perSel").value);
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+  return gymOrders.filter(inv => new Date(inv.createdDate || 0) >= cutoff);
+}
+
+// Enrich order with revenue split
+function enrich(inv) {
+  const branch = getBranchName(inv);
+  const lines = inv.lineItems || [];
+  if (!lines.length) {
+    return { ...inv, _branch: branch, _ng: parseFloat(inv.total||0), _gym: 0 };
+  }
+  const ng  = lines.filter(l => !isGymProduct(l)).reduce((s,l) => s + parseFloat(l.unitPrice||0)*(l.qty||1), 0);
+  const gym = lines.filter(l =>  isGymProduct(l)).reduce((s,l) => s + parseFloat(l.unitPrice||0)*(l.qty||1), 0);
+  return { ...inv, _branch: branch, _ng: ng, _gym: gym };
+}
+
+// Build MoM data
+function calcMoM(invs) {
+  const m = {};
+  invs.forEach(inv => {
+    const d = new Date(inv.createdDate||0);
+    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    m[k] = m[k] || { rev:0, orders:0 };
+    m[k].rev += inv._ng; m[k].orders++;
+  });
+  const keys = Object.keys(m).sort();
+  return keys.map((k,i) => ({
+    label: mLabel(k), revenue: m[k].rev, orders: m[k].orders,
+    prev: i>0?m[keys[i-1]].rev:0,
+    growth: i>0?grow(m[k].rev,m[keys[i-1]].rev):0
+  }));
+}
+
+// Build WoW data
+function calcWoW(invs) {
+  const w = {};
+  invs.forEach(inv => {
+    const k = isoWeek(new Date(inv.createdDate||0));
+    w[k] = w[k] || { rev:0, orders:0 };
+    w[k].rev += inv._ng; w[k].orders++;
+  });
+  const keys = Object.keys(w).sort().slice(-16);
+  return keys.map((k,i,arr) => ({
+    label: wLabel(k), revenue: w[k].rev, orders: w[k].orders,
+    prev: i>0?w[arr[i-1]].rev:0,
+    growth: i>0?grow(w[k].rev,w[arr[i-1]].rev):0
+  }));
+}
+
+function makeBarChart(id, labels, data, existing) {
+  const colors = data.map((v,i) => i===0?"#6366f1":v>=(data[i-1]||0)?"#10b981":"#ef4444");
+  if (existing) existing.destroy();
+  return new Chart(document.getElementById(id), {
+    type: "bar",
+    data: { labels, datasets:[{ data, backgroundColor:colors, borderRadius:4, maxBarThickness:52 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>$m(c.raw)}} },
+      scales:{
+        x:{ grid:{display:false}, ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45} },
+        y:{ grid:{color:"rgba(255,255,255,.06)"}, ticks:{color:"#555",font:{size:11},callback:$k} }
+      }
+    }
+  });
+}
+
+function makeBtns(id, branches, active, cb) {
+  const el = document.getElementById(id);
+  el.innerHTML = ["All locations",...branches].map((b,i) =>
+    `<button class="bb${i===active?" active":""}" data-i="${i}">${b}</button>`).join('');
+  el.querySelectorAll(".bb").forEach(b => b.addEventListener("click", () => cb(+b.dataset.i)));
+}
+
+function renderTopProducts(elId, lines, color) {
+  const m = {};
+  lines.forEach(li => {
+    const name = li.name || "Unknown";
+    m[name] = m[name] || { name, total:0, qty:0 };
+    m[name].total += parseFloat(li.unitPrice||0) * (li.qty||1);
+    m[name].qty   += parseFloat(li.qty||0);
+  });
+  const data = Object.values(m).filter(r=>r.total>0).sort((a,b)=>b.total-a.total).slice(0,15);
+  const max = data[0]?.total || 1;
+  document.getElementById(elId).innerHTML = data.length ? data.map((r,i) => `
+    <div class="top-row">
+      <div class="top-rank">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div class="top-name">${r.name}</div>
+        <div class="bar-wrap"><div class="bar-fill" style="background:${color};width:${Math.round((r.total/max)*100)}%"></div></div>
+      </div>
+      <div class="top-val">${$m(r.total)}</div>
+      <div class="top-qty">${Math.round(r.qty)} sold</div>
+    </div>`).join('') : '<div style="color:#444;text-align:center;padding:32px">No data</div>';
+}
+
+function render() {
+  const filtered = getFiltered().map(enrich);
+  const branches = [...new Set(filtered.map(i=>i._branch).filter(Boolean))].sort();
+
+  if (momLoc > branches.length) momLoc = 0;
+  if (wowLoc > branches.length) wowLoc = 0;
+
+  makeBtns("momBtns", branches, momLoc, i => { momLoc=i; render(); });
+  makeBtns("wowBtns", branches, wowLoc, i => { wowLoc=i; render(); });
+
+  const momInvs = momLoc===0 ? filtered : filtered.filter(i=>i._branch===branches[momLoc-1]);
+  const wowInvs = wowLoc===0 ? filtered : filtered.filter(i=>i._branch===branches[wowLoc-1]);
+
+  // MoM chart
+  const momData = calcMoM(momInvs);
+  momC = makeBarChart("momChart", momData.map(d=>d.label), momData.map(d=>d.revenue), momC);
+  document.getElementById("momSummary").innerHTML = momData.slice(-3).map((d,i) =>
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
+
+  // WoW chart
+  const wowData = calcWoW(wowInvs);
+  wowC = makeBarChart("wowChart", wowData.map(d=>d.label), wowData.map(d=>d.revenue), wowC);
+  document.getElementById("wowSummary").innerHTML = wowData.slice(-3).map((d,i) =>
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
+
+  // KPIs
+  const totalRev = filtered.reduce((s,i)=>s+i._ng,0);
+  const momLast  = momData.length>=2?momData[momData.length-1].growth:null;
+  const wowLast  = wowData.length>=2?wowData[wowData.length-1].growth:null;
+  document.getElementById("kRev").innerHTML = $m(totalRev);
+  document.getElementById("kOrd").innerHTML = filtered.length.toLocaleString("en-AU");
+  document.getElementById("kMoM").innerHTML = momLast!=null?pill(momLast):"—";
+  document.getElementById("kWoW").innerHTML = wowLast!=null?pill(wowLast):"—";
+  document.getElementById("subline").textContent =
+    `${filtered.length.toLocaleString()} gym orders · ${branches.length} location${branches.length!==1?"s":""} · live from Cin7`;
+
+  // Location chart
+  const locRevs = branches.map(b => filtered.filter(i=>i._branch===b).reduce((s,i)=>s+i._ng,0));
+  if (locC) locC.destroy();
+  locC = new Chart(document.getElementById("locChart"), {
+    type:"bar",
+    data:{ labels:branches, datasets:[{ data:locRevs, backgroundColor:branches.map((_,i)=>PAL[i%PAL.length]), borderRadius:4, maxBarThickness:60 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>$m(c.raw)}} },
+      scales:{
+        x:{ grid:{display:false}, ticks:{color:"#555",font:{size:11},maxRotation:45} },
+        y:{ grid:{color:"rgba(255,255,255,.06)"}, ticks:{color:"#555",font:{size:11},callback:$k} }
+      }
+    }
+  });
+  document.getElementById("locLegend").innerHTML = branches.map((b,i) =>
+    `<div style="display:flex;align-items:center;gap:5px">
+      <div style="width:8px;height:8px;border-radius:50%;background:${PAL[i%PAL.length]};flex-shrink:0"></div>
+      <span style="color:#888">${b}:</span>
+      <span style="font-weight:600">${$m(locRevs[i])}</span>
+    </div>`).join('');
+
+  // Top products
+  const allLines = filtered.flatMap(inv => (inv.lineItems||[]).map(li=>({...li,_gym:isGymProduct(li)})));
+  renderTopProducts("topNG",  allLines.filter(l=>!l._gym), "#6366f1");
+  renderTopProducts("topGym", allLines.filter(l=> l._gym), "#10b981");
+}
+
+document.getElementById("perSel").addEventListener("change", render);
+loadData();
+</script>
+</body>
+</html>
