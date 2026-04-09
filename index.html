@@ -114,7 +114,7 @@
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const EXCL_SRC  = ["international warehouse","international picking warehouse"];
+const INCL_SRC  = "ryderwear gym"; // only show locations containing this
 const GYM_WORDS = ["gym","lifting strap","resistance band","chalk","wrist wrap","figure-8","foam roller","dip belt","knee sleeve","lifting belt"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ const pill= v => `<span class="pill ${v>=0?'up':'dn'}">${pct(v)}</span>`;
 const grow= (a,b) => b>0?((a-b)/b)*100:0;
 
 const getSrc  = inv => inv.source || inv.projectName || inv.branchName || "Unknown";
-const isExcl  = inv => EXCL_SRC.some(e => getSrc(inv).toLowerCase().includes(e));
+const isExcl  = inv => !getSrc(inv).toLowerCase().includes(INCL_SRC);
 const isGymLi = li  => GYM_WORDS.some(w => (li.name||"").toLowerCase().includes(w));
 
 const isoWeek = d => {
