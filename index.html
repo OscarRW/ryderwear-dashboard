@@ -164,17 +164,22 @@ async function loadData() {
       891359: "Mandurah, WA"
     };
     const gymBranchIds = Object.keys(gymBranchMap).join(",");
-    document.getElementById("loadMsg").textContent="Loading gym orders…";
 
-    // Filter by branchId directly in Cin7 — much faster
+    // Always fetch 12 months — period selector filters client-side
+    const from12 = new Date();
+    from12.setFullYear(from12.getFullYear() - 1);
+    const fromStr = from12.toISOString().replace(/\.\d{3}Z$/, "Z");
+    const whereClause = `branchId IN (${gymBranchIds}) AND createdDate>='${fromStr}'`;
+
+    document.getElementById("loadMsg").textContent="Loading gym orders…";
     let all=[], page=1;
-    while (page<=20) {
+    while (page<=40) {
       document.getElementById("loadMsg").textContent=`Loading gym orders — page ${page} (${all.length} found)…`;
       const qs = new URLSearchParams({
         endpoint: "SalesOrders",
         rows: 250,
         page,
-        where: `branchId IN (${gymBranchIds})`
+        where: whereClause
       });
       const r = await fetch(`/api/cin7?${qs}`);
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
