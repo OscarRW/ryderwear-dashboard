@@ -6,7 +6,7 @@ module.exports = function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const { endpoint, rows = 250, page = 1, from, to } = req.query;
+  const { endpoint, rows = 250, page = 1, where } = req.query;
   if (!endpoint) return res.status(400).json({ error: "Missing endpoint" });
 
   const auth = Buffer.from(
@@ -16,12 +16,7 @@ module.exports = function handler(req, res) {
   const params = new URLSearchParams();
   params.set("rows", rows);
   params.set("page", page);
-  params.set("order", "createdDate DESC");
-  if (from && to) {
-    params.set("where", `createdDate>='${from}' AND createdDate<'${to}'`);
-  } else if (from) {
-    params.set("where", `createdDate>='${from}'`);
-  }
+  if (where) params.set("where", where);
 
   const path = `/api/v1/${endpoint}?${params.toString()}`;
 
