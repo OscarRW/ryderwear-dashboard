@@ -38,10 +38,10 @@ button:hover{background:#2a2a3e}
 .top-val{font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0;min-width:80px;text-align:right}
 .top-qty{font-size:11px;color:#444;width:50px;text-align:right;flex-shrink:0}
 .loc-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px}
-.spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;gap:16px}
+.spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;gap:12px}
 .spin{width:40px;height:40px;border:3px solid #2a2a3e;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.prog-bar{width:260px;height:4px;background:#2a2a3e;border-radius:4px;overflow:hidden;margin-top:4px}
+.prog-bar{width:280px;height:4px;background:#2a2a3e;border-radius:4px;overflow:hidden}
 .prog-fill{height:4px;background:#6366f1;border-radius:4px;transition:width .3s}
 .error-box{background:#1e1e2e;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:480px;margin:80px auto;text-align:center}
 #app{display:none}
@@ -55,7 +55,7 @@ button:hover{background:#2a2a3e}
   <div class="spin"></div>
   <div id="loadMsg" style="color:#aaa;font-size:14px">Connecting to Cin7…</div>
   <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
-  <div id="loadSub" style="color:#555;font-size:12px">Loading up to 6 months of history</div>
+  <div id="loadSub" style="color:#555;font-size:12px">Loading 12 months · all gym locations</div>
 </div>
 <div id="errorBox" class="error-box" style="display:none">
   <div style="font-size:32px;margin-bottom:12px">⚠️</div>
@@ -122,26 +122,42 @@ button:hover{background:#2a2a3e}
     <div class="loc-legend" id="locLegend"></div>
   </div>
 
-  <div class="top-grid">
-    <div class="card" style="margin-bottom:0"><div class="card-title" style="margin-bottom:14px">Top products — gym products only</div><div id="topGymOnly"></div></div>
-    <div class="card" style="margin-bottom:0"><div class="card-title" style="margin-bottom:14px">Top products — excluding gym products</div><div id="topExGym"></div></div>
+  <!-- Top Products with location filter -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-header">
+      <div class="card-title">Top products</div>
+      <select id="topLocSel" style="font-size:12px;padding:5px 10px">
+        <option value="all">All locations</option>
+      </select>
+    </div>
+    <div class="top-grid">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#aaa;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">
+          Top products — excluding gym products
+        </div>
+        <div id="topExGym"></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#aaa;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">
+          Top products — gym products only
+        </div>
+        <div id="topGymOnly"></div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-// ── Config ────────────────────────────────────────────────────────────────────
 const GYM_BRANCH_MAP = {
   401072:"Flinders Park, SA", 660561:"Tranmere, SA",   661430:"Midvale, WA",
   670812:"Malaga, WA",        670813:"Alberton, SA",    735636:"Hackham, SA",
   751793:"Wanneroo, WA",      800476:"Maddington, WA",  809004:"Munno Para, SA",
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
-const GYM_IDS  = Object.keys(GYM_BRANCH_MAP).map(Number);
-const GYM_KW   = ["lifting strap","resistance band","chalk","wrist wrap","figure-8","foam roller","dip belt","knee sleeve","lifting belt","gym bag","weightlifting belt","foam roller"];
-const PAL      = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
+const GYM_KW = ["lifting strap","resistance band","wrist wrap","figure-8","foam roller","dip belt","knee sleeve","lifting belt","gym bag","weightlifting belt","pilates gym bag","silicone lifting"];
+const PAL    = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
 const HISTORY_MONTHS = 12;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const $m   = v => "$"+Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
 const $k   = v => v>=1e6?"$"+Math.round(v/1e6)+"M":v>=1e3?"$"+Math.round(v/1e3)+"k":"$"+Math.round(v||0);
 const pct  = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
@@ -159,27 +175,33 @@ function isoWeek(d){
 const wLabel=k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
 const mLabel=k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
 
-// ── State ─────────────────────────────────────────────────────────────────────
 let allOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
-async function fetchGymOrders(branchId) {
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
+// Fetch one gym's full history (3 pages at a time, sequential gym processing)
+async function fetchGymHistory(branchId) {
+  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth()-HISTORY_MONTHS);
   const orders = [];
-  let page = 1;
-  while (page <= 40) {
-    const qs = new URLSearchParams({endpoint:"SalesOrders", rows:250, page, where:`branchId=${branchId}`});
-    const r  = await fetch(`/api/cin7?${qs}`);
-    if (!r.ok) break;
-    const d  = await r.json();
-    const rows = Array.isArray(d) ? d : (d.data||[]);
-    if (!rows.length) break;
-    orders.push(...rows);
-    const lastDate = new Date(rows[rows.length-1].createdDate||0);
-    if (lastDate < cutoff || rows.length < 250) break;
-    page++;
-    await sleep(350);
+  let page=1, done=false;
+
+  while (!done && page<=50) {
+    // 3 pages at a time within this gym
+    const pgs = [page, page+1, page+2];
+    const results = await Promise.all(pgs.map(async p => {
+      const qs = new URLSearchParams({endpoint:"SalesOrders",rows:250,page:p,where:`branchId=${branchId}`});
+      const r  = await fetch(`/api/cin7?${qs}`);
+      if (!r.ok) return [];
+      const d  = await r.json();
+      return Array.isArray(d)?d:(d.data||[]);
+    }));
+
+    for (const rows of results) {
+      if (!rows.length){ done=true; break; }
+      orders.push(...rows);
+      const last = new Date(rows[rows.length-1].createdDate||0);
+      if (last<cutoff || rows.length<250){ done=true; break; }
+    }
+    page+=3;
+    if (!done) await sleep(400); // stay under 3 req/sec
   }
   return orders;
 }
@@ -190,20 +212,30 @@ async function loadData(){
   document.getElementById("errorBox").style.display="none";
   document.getElementById("progFill").style.width="0%";
   allOrders=[];
+
   try{
     const entries=Object.entries(GYM_BRANCH_MAP);
     let all=[];
-    for(let i=0;i<entries.length;i+=3){
-      const batch=entries.slice(i,i+3);
-      const prog=Math.round((i/entries.length)*100);
+
+    for(let g=0;g<entries.length;g++){
+      const [id,name]=entries[g];
+      const prog=Math.round((g/entries.length)*100);
       document.getElementById("progFill").style.width=prog+"%";
-      document.getElementById("loadMsg").textContent=
-        `Loading ${batch.map(([,n])=>n.split(",")[0]).join(", ")}…`;
-      const results=await Promise.all(batch.map(([id])=>fetchGymOrders(id)));
-      results.forEach(r=>all.push(...r));
+      document.getElementById("loadMsg").textContent=`Loading ${name} (${g+1}/${entries.length})…`;
+      const gymData=await fetchGymHistory(id);
+      all.push(...gymData);
+      await sleep(500); // pause between gyms to avoid rate limits
     }
+
     document.getElementById("progFill").style.width="100%";
     allOrders=all;
+
+    // Populate top products location selector
+    const branches=[...new Set(all.map(i=>GYM_BRANCH_MAP[i.branchId]).filter(Boolean))].sort();
+    const sel=document.getElementById("topLocSel");
+    sel.innerHTML='<option value="all">All locations</option>'+
+      branches.map(b=>`<option value="${b}">${b}</option>`).join('');
+
     document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
     document.getElementById("loading").style.display="none";
     document.getElementById("app").style.display="block";
@@ -215,7 +247,6 @@ async function loadData(){
   }
 }
 
-// ── Enrich ────────────────────────────────────────────────────────────────────
 function enrich(inv){
   const branch=GYM_BRANCH_MAP[inv.branchId]||"Unknown";
   const lines=inv.lineItems||[];
@@ -225,7 +256,6 @@ function enrich(inv){
   return{...inv,_b:branch,_ng:ng,_gym:gym};
 }
 
-// ── Filters ───────────────────────────────────────────────────────────────────
 function getFiltered(){
   const days=parseInt(document.getElementById("perSel").value);
   const cut=new Date(); cut.setDate(cut.getDate()-days);
@@ -237,12 +267,11 @@ function getMomFiltered(){
   return allOrders.filter(i=>new Date(i.createdDate||0)>=cut).map(enrich);
 }
 
-// ── Calc ──────────────────────────────────────────────────────────────────────
 function calcMoM(invs){
   const m={};
   invs.forEach(inv=>{
     const d=new Date(inv.createdDate||0);
-    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"00")}`;
     m[k]=m[k]||{rev:0,orders:0}; m[k].rev+=inv._ng; m[k].orders++;
   });
   const keys=Object.keys(m).sort();
@@ -260,7 +289,6 @@ function calcWoW(invs){
     prev:i>0?w[arr[i-1]].rev:0,growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0}));
 }
 
-// ── Charts ────────────────────────────────────────────────────────────────────
 function makeBar(id,labels,data,existing){
   const colors=data.map((v,i)=>i===0?"#6366f1":v>=(data[i-1]||0)?"#10b981":"#ef4444");
   if(existing) existing.destroy();
@@ -301,7 +329,6 @@ function renderTop(elId,lines,color){
     </div>`).join(''):'<div style="color:#444;text-align:center;padding:32px">No data</div>';
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
 function render(){
   const filtered   =getFiltered();
   const momFiltered=getMomFiltered();
@@ -316,19 +343,16 @@ function render(){
   const momInvs=momLoc===0?momFiltered:momFiltered.filter(i=>i._b===branches[momLoc-1]);
   const wowInvs=wowLoc===0?filtered   :filtered.filter(i=>i._b===branches[wowLoc-1]);
 
-  // MoM
   const momData=calcMoM(momInvs);
   momC=makeBar("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
   document.getElementById("momSummary").innerHTML=momData.slice(-3).map(d=>
     `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
-  // WoW
   const wowData=calcWoW(wowInvs);
   wowC=makeBar("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
   document.getElementById("wowSummary").innerHTML=wowData.slice(-3).map(d=>
     `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
-  // KPIs
   const totalRev=filtered.reduce((s,i)=>s+i._ng,0);
   const momLast =momData.length>=2?momData[momData.length-1].growth:null;
   const wowLast =wowData.length>=2?wowData[wowData.length-1].growth:null;
@@ -339,7 +363,6 @@ function render(){
   document.getElementById("subline").textContent=
     `${allOrders.length.toLocaleString()} gym orders loaded · ${branches.length} locations · live from Cin7`;
 
-  // By location
   const locRevs=branches.map(b=>filtered.filter(i=>i._b===b).reduce((s,i)=>s+i._ng,0));
   if(locC) locC.destroy();
   locC=new Chart(document.getElementById("locChart"),{
@@ -356,14 +379,17 @@ function render(){
       <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[i])}</span>
     </div>`).join('');
 
-  // Top products
-  const allLines=filtered.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li)})));
-  renderTop("topGymOnly", allLines.filter(l=> l._gp),"#10b981");
+  // Top products with location filter
+  const topLoc=document.getElementById("topLocSel").value;
+  const topInvs=topLoc==="all"?filtered:filtered.filter(i=>i._b===topLoc);
+  const allLines=topInvs.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li)})));
   renderTop("topExGym",   allLines.filter(l=>!l._gp),"#6366f1");
+  renderTop("topGymOnly", allLines.filter(l=> l._gp),"#10b981");
 }
 
 document.getElementById("perSel").addEventListener("change",render);
 document.getElementById("momPeriodSel").addEventListener("change",render);
+document.getElementById("topLocSel").addEventListener("change",render);
 loadData();
 </script>
 </body>
