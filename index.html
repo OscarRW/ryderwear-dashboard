@@ -156,16 +156,10 @@ async function loadData() {
   document.getElementById("app").style.display="none";
   document.getElementById("errorBox").style.display="none";
   try {
-    // Fetch with date filter to get more history efficiently
-    const period = document.getElementById("perSel").value;
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - parseInt(period) - 10);
-    const dateStr = cutoffDate.toISOString().split("T")[0] + "T00:00:00Z";
-
     let page=1, all=[];
     while(page<=40){
       document.getElementById("loadMsg").textContent=`Loading orders — page ${page}…`;
-      const rows = await cin7(`SalesOrders?where=createdDate>='${encodeURIComponent(dateStr)}'`, page);
+      const rows = await cin7("SalesOrders", page);
       if(!rows.length) break;
       all = all.concat(rows.filter(i=>!isExcl(i)));
       if(rows.length<250) break;
