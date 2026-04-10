@@ -452,18 +452,22 @@ async function loadData(){
       let page=1;
       while(page<=60){
         document.getElementById("loadSub").textContent=`${name} · page ${page}`;
-        const [rowsA,rowsB]=await Promise.all([fetchPage(id,page),fetchPage(id,page+1)]);
+        // 4 pages in parallel per gym — retry handles any 429s
+        const [a,b,c,d]=await Promise.all([
+          fetchPage(id,page),fetchPage(id,page+1),
+          fetchPage(id,page+2),fetchPage(id,page+3)
+        ]);
         let stop=false;
-        for(const rows of [rowsA,rowsB]){
+        for(const rows of [a,b,c,d]){
           if(!rows.length){stop=true;break;}
           all.push(...rows);
           if(new Date(rows[rows.length-1].createdDate||0)<cutoff||rows.length<250){stop=true;break;}
         }
         if(stop) break;
-        page+=2;
-        await sleep(400);
+        page+=4;
+        await sleep(150); // minimal pause — retry catches any 429s
       }
-      await sleep(700);
+      await sleep(300); // short pause between gyms
     }
 
     document.getElementById("progFill").style.width="100%";
