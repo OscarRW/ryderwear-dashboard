@@ -282,15 +282,6 @@ function getMomFiltered(){
   const cut=new Date();cut.setDate(cut.getDate()-days);
   return allOrders.filter(i=>new Date(i.createdDate||0)>=cut).map(enrich);
 }
-function getLocFiltered(){
-  const val=document.getElementById("locMonthSel").value;
-  if(val==="all") return allOrders.map(enrich);
-  return allOrders.filter(inv=>{
-    const d=new Date(inv.createdDate||0);
-    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    return k===val;
-  }).map(enrich);
-}
 
 // ── Calcs ──────────────────────────────────────────────────────────────────────
 function calcMoM(invs){
@@ -400,24 +391,6 @@ function render(){
     "";
   document.getElementById("subline").textContent=
     `${allOrders.length.toLocaleString()} gym orders · ${branches.length} locations${dateRange} · live from Cin7`;
-
-  // Location bar chart (uses its own month filter)
-  const locBranches=[...new Set(locFiltered.map(i=>i._b).filter(b=>b&&b!=="Unknown"))].sort();
-  const locRevs=locBranches.map(b=>locFiltered.filter(i=>i._b===b).reduce((s,i)=>s+i._ng,0));
-  if(locC) locC.destroy();
-  locC=new Chart(document.getElementById("locChart"),{
-    type:"bar",
-    data:{labels:locBranches,datasets:[{data:locRevs,backgroundColor:locBranches.map((_,i)=>PAL[i%PAL.length]),borderRadius:4,maxBarThickness:60}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
-      scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:10},maxRotation:45}},
-              y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
-  });
-  document.getElementById("locLegend").innerHTML=locBranches.map((b,i)=>
-    `<div style="display:flex;align-items:center;gap:5px">
-      <div style="width:8px;height:8px;border-radius:50%;background:${PAL[i%PAL.length]};flex-shrink:0"></div>
-      <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[i])}</span>
-    </div>`).join('');
 
   // Top products — excludes clothing AND gym equipment from left, gym equipment only on right
   const allLines=topBase.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li),_cloth:isClothing(li)})));
