@@ -25,8 +25,7 @@ button:hover{background:#2a2a3e}
 .card-title{font-size:13px;font-weight:600;color:#aaa}
 .branch-btns{display:flex;flex-wrap:wrap;gap:4px}
 .bb{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #2a2a3e;background:transparent;color:#666;cursor:pointer;white-space:nowrap}
-.bb.active{background:#2a2a3e;color:#fff;border-color:#444}
-.bb:hover{background:#252538}
+.bb.active{background:#2a2a3e;color:#fff;border-color:#444}.bb:hover{background:#252538}
 .chart-wrap{position:relative;height:220px}
 .summary{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;font-size:12px;color:#666}
 .summary b{color:#ccc;font-weight:600}
@@ -56,13 +55,13 @@ button:hover{background:#2a2a3e}
   <div class="spin"></div>
   <div id="loadMsg" style="color:#aaa;font-size:14px">Connecting to Cin7…</div>
   <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
-  <div id="loadSub" style="color:#555;font-size:12px">Loading 12 months of gym orders…</div>
+  <div id="loadSub" style="color:#555;font-size:12px">First load takes ~3 min · saves locally after</div>
 </div>
 <div id="errorBox" class="error-box" style="display:none">
   <div style="font-size:32px;margin-bottom:12px">⚠️</div>
   <div style="color:#ef4444;font-weight:700;margin-bottom:8px">Connection error</div>
   <div id="errMsg" style="color:#aaa;font-size:13px;margin-bottom:20px"></div>
-  <button onclick="location.reload()">↻ Retry</button>
+  <button onclick="hardRefresh()">↻ Retry</button>
 </div>
 
 <div id="app">
@@ -76,7 +75,7 @@ button:hover{background:#2a2a3e}
       <option value="60">Last 60 days</option>
       <option value="90" selected>Last 90 days</option>
     </select>
-    <button onclick="loadData()">↻ Refresh</button>
+    <button onclick="hardRefresh()">↻ Refresh data</button>
     <span id="lastRefresh" style="font-size:12px;color:#444;margin-left:4px"></span>
   </div>
 
@@ -95,8 +94,8 @@ button:hover{background:#2a2a3e}
           <select id="momPeriodSel" class="sms">
             <option value="30">30 days</option>
             <option value="60">60 days</option>
-            <option value="90" selected>90 days</option>
-            <option value="180">All available</option>
+            <option value="90">90 days</option>
+            <option value="0" selected>All available</option>
           </select>
           <div class="branch-btns" id="momBtns"></div>
         </div>
@@ -116,16 +115,14 @@ button:hover{background:#2a2a3e}
   <div style="height:16px"></div>
 
   <div class="card">
-    <div class="card-header">
-      <div class="card-title">Revenue by gym location (ex gym products)</div>
-    </div>
+    <div class="card-header"><div class="card-title">Revenue by gym location (ex gym products)</div></div>
     <div class="chart-wrap"><canvas id="locChart"></canvas></div>
     <div class="loc-legend" id="locLegend"></div>
   </div>
 
   <div class="card">
     <div class="card-header">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px">
         <div class="card-title">Top products</div>
         <span id="topPeriodLabel" style="font-size:11px;color:#555"></span>
       </div>
@@ -135,15 +132,11 @@ button:hover{background:#2a2a3e}
     </div>
     <div class="top-grid">
       <div>
-        <div style="font-size:12px;font-weight:600;color:#6366f1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">
-          Top products — excluding gym products
-        </div>
+        <div style="font-size:12px;font-weight:600;color:#6366f1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">Top products — excluding gym products</div>
         <div id="topExGym"></div>
       </div>
       <div>
-        <div style="font-size:12px;font-weight:600;color:#10b981;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">
-          Top products — gym products only
-        </div>
+        <div style="font-size:12px;font-weight:600;color:#10b981;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">Top products — gym products only</div>
         <div id="topGymOnly"></div>
       </div>
     </div>
@@ -151,178 +144,176 @@ button:hover{background:#2a2a3e}
 </div>
 
 <script>
-// ── Config ───────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 const GYM_BRANCH_MAP = {
   401072:"Flinders Park, SA", 660561:"Tranmere, SA",   661430:"Midvale, WA",
   670812:"Malaga, WA",        670813:"Alberton, SA",    735636:"Hackham, SA",
   751793:"Wanneroo, WA",      800476:"Maddington, WA",  809004:"Munno Para, SA",
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
-const GYM_IDS = Object.keys(GYM_BRANCH_MAP).join(",");
-// Gym EQUIPMENT keywords (items like lifting straps, chalk etc.)
-const GYM_KW = ["lifting strap","silicone lifting","resistance band","wrist wrap","figure-8 strap","foam roller","dip belt","knee sleeve","lifting belt","weightlifting belt","pilates gym bag","power resistance band"];
-const PAL    = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const MAX_PAGES = 400; // 100,000 orders max ≈ 12–15 months
+const GYM_KW  = ["lifting strap","silicone lifting","resistance band","wrist wrap","figure-8 strap","foam roller","dip belt","knee sleeve","lifting belt","weightlifting belt","pilates gym bag","power resistance band"];
+const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
+const CACHE_KEY = "rwgym_v3";
+const CACHE_TTL = 23 * 3600 * 1000; // 23 hours
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const $m   = v => "$"+Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
 const $k   = v => v>=1e6?"$"+Math.round(v/1e6)+"M":v>=1e3?"$"+Math.round(v/1e3)+"k":"$"+Math.round(v||0);
 const pct  = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
 const pill = v => `<span class="pill ${v>=0?"up":"dn"}">${pct(v)}</span>`;
 const grow = (a,b) => b>0?((a-b)/b)*100:0;
 const sleep= ms => new Promise(r=>setTimeout(r,ms));
-// Clothing: option2 is a standard garment size
-const GARMENT_SIZES = /^(XS|S|M|L|XL|2XL|XXL|3XL|4XL|XXXL|ONE SIZE|OSFM|6|8|10|12|14|16|18|20|22|24|Regular)$/i;
-const isClothing = li => GARMENT_SIZES.test((li.option2||"").trim());
 const isGP = li => GYM_KW.some(k=>(li.name||"").toLowerCase().includes(k));
-
-// Clothing size pattern — strips final size variant from name
-const SIZE_PAT = /^(XS|S|M|L|XL|XXL|2XL|3XL|4XL|XXXL|ONE SIZE|OSFM|Regular\s*[\/]?\s*[SMLX]+|\d{1,2})$/i;
-
-// Group key: use styleCode (groups all sizes of same product/colour together)
-const prodKey = li => {
-  const sc = (li.styleCode||"").trim();
-  return sc || (li.name||"Unknown");
-};
-
-// Display name: strip clothing size suffix when 3+ parts in name
+const GARMENT_SIZES=/^(XS|S|M|L|XL|2XL|XXL|3XL|4XL|XXXL|ONE SIZE|OSFM|Regular\s*[\/]?\s*[SMLX]+|\d{1,2})$/i;
+const isClothing = li => GARMENT_SIZES.test((li.option2||"").trim());
+const prodKey  = li => (li.styleCode||"").trim() || (li.name||"Unknown");
 const prodName = li => {
-  const n = li.name || "Unknown";
-  const parts = n.split(" - ");
-  if(parts.length >= 3 && SIZE_PAT.test(parts[parts.length-1].trim())){
-    return parts.slice(0,-1).join(" - ");
-  }
-  return n;
+  if(!li.styleCode) return li.name||"Unknown";
+  const parts=(li.name||"Unknown").split(" - ");
+  if(parts.length>=3 && GARMENT_SIZES.test(parts[parts.length-1].trim())) return parts.slice(0,-1).join(" - ");
+  return li.name||"Unknown";
 };
 
 function isoWeek(d){
-  const t=new Date(d);t.setHours(0,0,0,0);
-  t.setDate(t.getDate()+4-(t.getDay()||7));
+  const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+4-(t.getDay()||7));
   const y=t.getFullYear();
   return`${y}-W${String(Math.ceil(((t-new Date(y,0,1))/864e5+1)/7)).padStart(2,"0")}`;
 }
-const wLabel = k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
-const mLabel = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
-const mLong  = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"long",year:"numeric"});};
+const wLabel=k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
+const mLabel=k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
 
-let allOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
+// ── State ─────────────────────────────────────────────────────────────────────
+// gymData.daily: {"2025-04-15": {"Alberton, SA": [ng, gym, orders], ...}}
+// gymData.tops:  {"90|all": {ex:[...], gm:[...]}, "90|Alberton, SA": {...}, ...}
+// gymData.branches: [...]
+let gymData={daily:{},tops:{},branches:[]};
+let momLoc=0, wowLoc=0, momC, wowC, locC;
 
-// ── Fetch: sequential single pages with retry on rate limit ──────────────────
-async function fetchPage(branchId, page) {
-  for(let attempt=0; attempt<4; attempt++){
-    if(attempt>0) await sleep(attempt*2000); // 2s, 4s, 6s backoff
-    try{
-      const qs=new URLSearchParams({
-        endpoint:"SalesOrders", rows:250, page,
-        where:`branchId=${branchId}`
-      });
-      const r=await fetch(`/api/cin7?${qs}`);
-      if(r.status===429) continue; // rate limited — retry after backoff
-      if(!r.ok) return [];
-      const d=await r.json();
-      return Array.isArray(d)?d:(d.data||[]);
-    }catch(e){ /* network error — retry */ }
-  }
-  return [];
+// ── Cache ─────────────────────────────────────────────────────────────────────
+function saveCache(data){
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify(data)); }catch(e){}
 }
-
-async function fetchGymHistory(branchId, name) {
-  const cutoff=new Date(); cutoff.setMonth(cutoff.getMonth()-13);
-  const orders=[]; let page=1;
-  while(page<=60){
-    document.getElementById("loadSub").textContent=
-      `${name} · page ${page}`;
-    const rows=await fetchPage(branchId, page);
-    if(!rows.length) break;
-    orders.push(...rows);
-    const last=new Date(rows[rows.length-1].createdDate||0);
-    if(last<cutoff||rows.length<250) break;
-    page++;
-    await sleep(350); // 1 req per 0.7s = 1.4 req/sec — well under 3/sec limit
-  }
-  return orders;
-}
-
-async function loadData(){
-  document.getElementById("loading").style.display="flex";
-  document.getElementById("app").style.display="none";
-  document.getElementById("errorBox").style.display="none";
-  document.getElementById("progFill").style.width="0%";
-  allOrders=[];
+function loadCache(){
   try{
-    const entries=Object.entries(GYM_BRANCH_MAP);
-    let all=[];
-    for(let g=0;g<entries.length;g++){
-      const [id,name]=entries[g];
-      document.getElementById("progFill").style.width=Math.round((g/entries.length)*100)+"%";
-      document.getElementById("loadMsg").textContent=
-        `Loading ${name} (${g+1} of ${entries.length})`;
-      const gymData=await fetchGymHistory(id, name);
-      all.push(...gymData);
-      await sleep(800); // extra pause between gyms
-    }
-    document.getElementById("progFill").style.width="100%";
-    allOrders=all;
-
-    const branches=[...new Set(all.map(i=>GYM_BRANCH_MAP[i.branchId]).filter(Boolean))].sort();
-    document.getElementById("topLocSel").innerHTML=
-      '<option value="all">All locations</option>'+
-      branches.map(b=>`<option value="${b}">${b}</option>`).join('');
-
-    document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
-    document.getElementById("loading").style.display="none";
-    document.getElementById("app").style.display="block";
-    render();
-  }catch(e){
-    document.getElementById("loading").style.display="none";
-    document.getElementById("errorBox").style.display="block";
-    document.getElementById("errMsg").textContent=e.message;
-  }
+    const raw=localStorage.getItem(CACHE_KEY);
+    if(!raw) return null;
+    const d=JSON.parse(raw);
+    if(Date.now()-d.timestamp>CACHE_TTL){ localStorage.removeItem(CACHE_KEY); return null; }
+    return d;
+  }catch(e){ return null; }
+}
+function hardRefresh(){
+  localStorage.removeItem(CACHE_KEY);
+  location.reload();
 }
 
-// ── Enrich ────────────────────────────────────────────────────────────────────
-function enrich(inv){
-  const branch=GYM_BRANCH_MAP[inv.branchId]||"Unknown";
-  const lines=inv.lineItems||[];
-  if(!lines.length) return{...inv,_b:branch,_ng:parseFloat(inv.total||0),_gym:0};
-  const ng =lines.filter(l=>!isGP(l)).reduce((s,l)=>s+parseFloat(l.unitPrice||0)*(l.qty||1),0);
-  const gym=lines.filter(l=> isGP(l)).reduce((s,l)=>s+parseFloat(l.unitPrice||0)*(l.qty||1),0);
-  return{...inv,_b:branch,_ng:ng,_gym:gym};
-}
-
-// ── Filters ───────────────────────────────────────────────────────────────────
-function getFiltered(){
-  const days=parseInt(document.getElementById("perSel").value);
-  const cut=new Date();cut.setDate(cut.getDate()-days);
-  return allOrders.filter(i=>new Date(i.createdDate||0)>=cut).map(enrich);
-}
-function getMomFiltered(){
-  const days=parseInt(document.getElementById("momPeriodSel").value);
-  const cut=new Date();cut.setDate(cut.getDate()-days);
-  return allOrders.filter(i=>new Date(i.createdDate||0)>=cut).map(enrich);
-}
-
-// ── Calcs ──────────────────────────────────────────────────────────────────────
-function calcMoM(invs){
+// ── Build cache structure from raw orders ─────────────────────────────────────
+function computeTopList(lines){
   const m={};
-  invs.forEach(inv=>{
-    const d=new Date(inv.createdDate||0);
-    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    m[k]=m[k]||{rev:0,orders:0};m[k].rev+=inv._ng;m[k].orders++;
+  lines.forEach(li=>{
+    const key=prodKey(li);
+    if(!m[key]) m[key]={n:prodName(li),t:0,q:0};
+    m[key].t+=parseFloat(li.unitPrice||0)*(li.qty||1);
+    m[key].q+=parseFloat(li.qty||0);
+  });
+  return Object.values(m).filter(r=>r.t>0).sort((a,b)=>b.t-a.t).slice(0,15);
+}
+
+function buildGymData(allOrders){
+  const daily={};
+  allOrders.forEach(inv=>{
+    const branch=GYM_BRANCH_MAP[inv.branchId]; if(!branch) return;
+    const lines=inv.lineItems||[];
+    let ng=0, gym=0;
+    if(lines.length){
+      lines.forEach(li=>{
+        const r=parseFloat(li.unitPrice||0)*(li.qty||1);
+        if(isGP(li)) gym+=r; else ng+=r;
+      });
+    } else { ng=parseFloat(inv.total||0); }
+    const date=(inv.createdDate||"").substring(0,10);
+    if(!date||date<"2020") return;
+    if(!daily[date]) daily[date]={};
+    if(!daily[date][branch]) daily[date][branch]=[0,0,0];
+    daily[date][branch][0]+=ng;
+    daily[date][branch][1]+=gym;
+    daily[date][branch][2]+=1;
+  });
+
+  const branches=[...new Set(Object.values(daily).flatMap(d=>Object.keys(d)))].sort();
+
+  // Pre-compute top products for each period × location
+  const PERIODS=[7,14,30,60,90];
+  const tops={};
+  PERIODS.forEach(days=>{
+    const cut=new Date(Date.now()-days*864e5);
+    const pOrders=allOrders.filter(i=>new Date(i.createdDate||0)>=cut);
+    ["all",...branches].forEach(loc=>{
+      const lOrders=loc==="all"?pOrders:pOrders.filter(i=>GYM_BRANCH_MAP[i.branchId]===loc);
+      const lines=lOrders.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li),_cl:isClothing(li)})));
+      tops[`${days}|${loc}`]={
+        ex: computeTopList(lines.filter(l=>!l._gp&&!l._cl)),
+        gm: computeTopList(lines.filter(l=>l._gp))
+      };
+    });
+  });
+
+  return { timestamp:Date.now(), daily, tops, branches, totalOrders:allOrders.length };
+}
+
+// ── Data calculations from gymData ────────────────────────────────────────────
+function calcMoM(daily, branch, days){
+  const cut=days>0?new Date(Date.now()-days*864e5):null;
+  const m={};
+  Object.entries(daily).forEach(([date,branches])=>{
+    if(cut&&new Date(date)<cut) return;
+    const k=date.substring(0,7);
+    if(!m[k]) m[k]={rev:0,orders:0};
+    if(branch==="all"){
+      Object.values(branches).forEach(([ng,,ord])=>{m[k].rev+=ng;m[k].orders+=ord;});
+    }else if(branches[branch]){
+      m[k].rev+=branches[branch][0]; m[k].orders+=branches[branch][2];
+    }
   });
   const keys=Object.keys(m).sort();
   return keys.map((k,i)=>({label:mLabel(k),revenue:m[k].rev,orders:m[k].orders,
     prev:i>0?m[keys[i-1]].rev:0,growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0}));
 }
-function calcWoW(invs){
+
+function calcWoW(daily, branch){
   const w={};
-  invs.forEach(inv=>{
-    const k=isoWeek(new Date(inv.createdDate||0));
-    w[k]=w[k]||{rev:0,orders:0};w[k].rev+=inv._ng;w[k].orders++;
+  Object.entries(daily).forEach(([date,branches])=>{
+    const k=isoWeek(new Date(date));
+    if(!w[k]) w[k]={rev:0,orders:0};
+    if(branch==="all"){
+      Object.values(branches).forEach(([ng,,ord])=>{w[k].rev+=ng;w[k].orders+=ord;});
+    }else if(branches[branch]){
+      w[k].rev+=branches[branch][0]; w[k].orders+=branches[branch][2];
+    }
   });
   const keys=Object.keys(w).sort().slice(-16);
   return keys.map((k,i,arr)=>({label:wLabel(k),revenue:w[k].rev,orders:w[k].orders,
     prev:i>0?w[arr[i-1]].rev:0,growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0}));
+}
+
+function calcKPI(daily, days){
+  const cut=new Date(Date.now()-days*864e5);
+  let rev=0,orders=0;
+  Object.entries(daily).forEach(([date,branches])=>{
+    if(new Date(date)<cut) return;
+    Object.values(branches).forEach(([ng,,ord])=>{rev+=ng;orders+=ord;});
+  });
+  return{rev,orders};
+}
+
+function calcLoc(daily, days){
+  const cut=new Date(Date.now()-days*864e5);
+  const loc={};
+  Object.entries(daily).forEach(([date,branches])=>{
+    if(new Date(date)<cut) return;
+    Object.entries(branches).forEach(([br,[ng]])=>{loc[br]=(loc[br]||0)+ng;});
+  });
+  return loc;
 }
 
 // ── Charts ────────────────────────────────────────────────────────────────────
@@ -344,80 +335,59 @@ function makeBtns(id,branches,active,cb){
     `<button class="bb${i===active?" active":""}" data-i="${i}">${b}</button>`).join('');
   el.querySelectorAll(".bb").forEach(b=>b.addEventListener("click",()=>cb(+b.dataset.i)));
 }
-function renderTop(elId,lines,color){
-  const m={};
-  lines.forEach(li=>{
-    const key=prodKey(li);
-    if(!m[key]) m[key]={name:prodName(li),total:0,qty:0};
-    m[key].total+=parseFloat(li.unitPrice||0)*(li.qty||1);
-    m[key].qty  +=parseFloat(li.qty||0);
-  });
-  const data=Object.values(m).filter(r=>r.total>0).sort((a,b)=>b.total-a.total).slice(0,15);
-  const max=data[0]?.total||1;
-  document.getElementById(elId).innerHTML=data.length?data.map((r,i)=>`
+function renderTopList(elId,items,color){
+  const max=items[0]?.t||1;
+  document.getElementById(elId).innerHTML=items.length?items.map((r,i)=>`
     <div class="top-row">
       <div class="top-rank">${i+1}</div>
       <div style="flex:1;min-width:0">
-        <div class="top-name">${r.name}</div>
-        <div class="bar-wrap"><div class="bar-fill" style="background:${color};width:${Math.round((r.total/max)*100)}%"></div></div>
+        <div class="top-name">${r.n}</div>
+        <div class="bar-wrap"><div class="bar-fill" style="background:${color};width:${Math.round((r.t/max)*100)}%"></div></div>
       </div>
-      <div class="top-val">${$m(r.total)}</div>
-      <div class="top-qty">${Math.round(r.qty)} sold</div>
+      <div class="top-val">${$m(r.t)}</div>
+      <div class="top-qty">${Math.round(r.q)} sold</div>
     </div>`).join(''):'<div style="color:#444;text-align:center;padding:32px">No data</div>';
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function render(){
-  const filtered   =getFiltered();
-  const momFiltered=getMomFiltered();
-  const branches   =[...new Set(filtered.map(i=>i._b).filter(b=>b&&b!=="Unknown"))].sort();
+  const {daily,tops,branches}=gymData;
+  const days=parseInt(document.getElementById("perSel").value);
+  const momDays=parseInt(document.getElementById("momPeriodSel").value); // 0 = all
+
+  const momBranch=momLoc===0?"all":branches[momLoc-1];
+  const wowBranch=wowLoc===0?"all":branches[wowLoc-1];
 
   if(momLoc>branches.length) momLoc=0;
   if(wowLoc>branches.length) wowLoc=0;
   makeBtns("momBtns",branches,momLoc,i=>{momLoc=i;render();});
   makeBtns("wowBtns",branches,wowLoc,i=>{wowLoc=i;render();});
 
-  const momInvs=momLoc===0?momFiltered:momFiltered.filter(i=>i._b===branches[momLoc-1]);
-  const wowInvs=wowLoc===0?filtered   :filtered.filter(i=>i._b===branches[wowLoc-1]);
-
-  // MoM
-  const momData=calcMoM(momInvs);
+  const momData=calcMoM(daily,momBranch,momDays);
   momC=makeBar("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
   document.getElementById("momSummary").innerHTML=momData.slice(-3).map(d=>
     `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
-  // WoW
-  const wowData=calcWoW(wowInvs);
+  const wowData=calcWoW(daily,wowBranch);
   wowC=makeBar("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
   document.getElementById("wowSummary").innerHTML=wowData.slice(-3).map(d=>
     `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
-  // KPIs
-  const totalRev=filtered.reduce((s,i)=>s+i._ng,0);
-  const momLast =momData.length>=2?momData[momData.length-1].growth:null;
-  const wowLast =wowData.length>=2?wowData[wowData.length-1].growth:null;
-  document.getElementById("kRev").innerHTML=$m(totalRev);
-  document.getElementById("kOrd").innerHTML=filtered.length.toLocaleString("en-AU");
+  const kpi=calcKPI(daily,days);
+  const momLast=momData.length>=2?momData[momData.length-1].growth:null;
+  const wowLast=wowData.length>=2?wowData[wowData.length-1].growth:null;
+  document.getElementById("kRev").innerHTML=$m(kpi.rev);
+  document.getElementById("kOrd").innerHTML=kpi.orders.toLocaleString("en-AU");
   document.getElementById("kMoM").innerHTML=momLast!=null?pill(momLast):"—";
   document.getElementById("kWoW").innerHTML=wowLast!=null?pill(wowLast):"—";
 
-  // Oldest and newest dates for subline
-  const dates=allOrders.map(i=>new Date(i.createdDate||0)).filter(d=>d.getFullYear()>2000);
-  const oldest=dates.length?new Date(Math.min(...dates)):null;
-  const newest=dates.length?new Date(Math.max(...dates)):null;
-  const dateRange=oldest&&newest?
-    ` · ${oldest.toLocaleString("en-AU",{month:"short",year:"numeric"})} – ${newest.toLocaleString("en-AU",{month:"short",year:"numeric"})}`:
-    "";
-  document.getElementById("subline").textContent=
-    `${allOrders.length.toLocaleString()} gym orders · ${branches.length} locations${dateRange} · live from Cin7`;
-
-  // Location bar chart
-  const locBranches=[...new Set(filtered.map(i=>i._b).filter(b=>b&&b!=="Unknown"))].sort();
-  const locRevs=locBranches.map(b=>filtered.filter(i=>i._b===b).reduce((s,i)=>s+i._ng,0));
+  // Location chart
+  const locRevs=calcLoc(daily,days);
+  const locBranches=Object.keys(locRevs).sort();
   if(locC) locC.destroy();
   locC=new Chart(document.getElementById("locChart"),{
     type:"bar",
-    data:{labels:locBranches,datasets:[{data:locRevs,backgroundColor:locBranches.map((_,i)=>PAL[i%PAL.length]),borderRadius:4,maxBarThickness:60}]},
+    data:{labels:locBranches,datasets:[{data:locBranches.map(b=>locRevs[b]),backgroundColor:locBranches.map((_,i)=>PAL[i%PAL.length]),borderRadius:4,maxBarThickness:60}]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
       scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:10},maxRotation:45}},
@@ -426,23 +396,120 @@ function render(){
   document.getElementById("locLegend").innerHTML=locBranches.map((b,i)=>
     `<div style="display:flex;align-items:center;gap:5px">
       <div style="width:8px;height:8px;border-radius:50%;background:${PAL[i%PAL.length]};flex-shrink:0"></div>
-      <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[i])}</span>
+      <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[b])}</span>
     </div>`).join('');
 
-  // Top products
-  const perTxt=document.getElementById("perSel").selectedOptions[0]?.text||"";
-  document.getElementById("topPeriodLabel").textContent=`· ${perTxt}`;
+  // Top products (from pre-computed cache)
   const topLoc=document.getElementById("topLocSel").value;
-  const topBase=topLoc==="all"?filtered:filtered.filter(i=>i._b===topLoc);
-  const allLines=topBase.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li),_cloth:isClothing(li)})));
-  renderTop("topExGym",  allLines.filter(l=>!l._gp && !l._cloth),"#6366f1");
-  renderTop("topGymOnly",allLines.filter(l=> l._gp),"#10b981");
+  const topKey=`${days}|${topLoc}`;
+  const topData=tops[topKey]||{ex:[],gm:[]};
+  document.getElementById("topPeriodLabel").textContent=
+    `· ${document.getElementById("perSel").selectedOptions[0]?.text||""}`;
+  renderTopList("topExGym", topData.ex, "#6366f1");
+  renderTopList("topGymOnly",topData.gm,"#10b981");
+
+  // Subline
+  const dates=Object.keys(daily).sort();
+  const from=dates[0]?mLabel(dates[0].substring(0,7)):"";
+  const to  =dates[dates.length-1]?mLabel(dates[dates.length-1].substring(0,7)):"";
+  document.getElementById("subline").textContent=
+    `${(gymData.totalOrders||0).toLocaleString()} gym orders · ${branches.length} locations · ${from} – ${to} · live from Cin7`;
+}
+
+// ── Fetch one page with retry ─────────────────────────────────────────────────
+async function fetchPage(branchId, page){
+  for(let attempt=0;attempt<4;attempt++){
+    if(attempt>0) await sleep(attempt*2000);
+    try{
+      const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page,where:`branchId=${branchId}`});
+      const r=await fetch(`/api/cin7?${qs}`);
+      if(r.status===429) continue;
+      if(!r.ok) return [];
+      const d=await r.json();
+      return Array.isArray(d)?d:(d.data||[]);
+    }catch(e){}
+  }
+  return [];
+}
+
+// ── Full data load ────────────────────────────────────────────────────────────
+async function loadData(){
+  document.getElementById("loading").style.display="flex";
+  document.getElementById("app").style.display="none";
+  document.getElementById("errorBox").style.display="none";
+  document.getElementById("progFill").style.width="0%";
+
+  try{
+    const entries=Object.entries(GYM_BRANCH_MAP);
+    const cutoff=new Date(); cutoff.setMonth(cutoff.getMonth()-13);
+    let all=[];
+
+    for(let g=0;g<entries.length;g++){
+      const [id,name]=entries[g];
+      document.getElementById("progFill").style.width=Math.round((g/entries.length)*100)+"%";
+      document.getElementById("loadMsg").textContent=`Loading ${name} (${g+1} of ${entries.length})`;
+
+      let page=1;
+      while(page<=60){
+        document.getElementById("loadSub").textContent=`${name} · page ${page}`;
+        const [rowsA,rowsB]=await Promise.all([fetchPage(id,page),fetchPage(id,page+1)]);
+        let stop=false;
+        for(const rows of [rowsA,rowsB]){
+          if(!rows.length){stop=true;break;}
+          all.push(...rows);
+          if(new Date(rows[rows.length-1].createdDate||0)<cutoff||rows.length<250){stop=true;break;}
+        }
+        if(stop) break;
+        page+=2;
+        await sleep(400);
+      }
+      await sleep(700);
+    }
+
+    document.getElementById("progFill").style.width="100%";
+    document.getElementById("loadSub").textContent="Building charts…";
+
+    gymData=buildGymData(all);
+    saveCache(gymData);
+
+    document.getElementById("topLocSel").innerHTML=
+      '<option value="all">All locations</option>'+
+      gymData.branches.map(b=>`<option value="${b}">${b}</option>`).join('');
+    document.getElementById("lastRefresh").textContent=
+      "Updated "+new Date().toLocaleTimeString("en-AU");
+    document.getElementById("loading").style.display="none";
+    document.getElementById("app").style.display="block";
+    render();
+  }catch(e){
+    document.getElementById("loading").style.display="none";
+    document.getElementById("errorBox").style.display="block";
+    document.getElementById("errMsg").textContent=e.message;
+  }
+}
+
+// ── Init: try cache first, then fetch ────────────────────────────────────────
+function init(){
+  const cached=loadCache();
+  if(cached){
+    gymData=cached;
+    document.getElementById("topLocSel").innerHTML=
+      '<option value="all">All locations</option>'+
+      cached.branches.map(b=>`<option value="${b}">${b}</option>`).join('');
+    const age=Math.round((Date.now()-cached.timestamp)/60000);
+    document.getElementById("lastRefresh").textContent=
+      age<60?`Cached ${age}m ago`:`Cached ${Math.round(age/60)}h ago`;
+    document.getElementById("loading").style.display="none";
+    document.getElementById("app").style.display="block";
+    render();
+    return;
+  }
+  loadData();
 }
 
 document.getElementById("perSel").addEventListener("change",render);
 document.getElementById("momPeriodSel").addEventListener("change",render);
 document.getElementById("topLocSel").addEventListener("change",render);
-loadData();
+init();
 </script>
 </body>
 </html>
