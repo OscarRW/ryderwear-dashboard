@@ -137,13 +137,6 @@ button:hover{background:#2a2a3e}
     <div class="summary" id="dodSummary"></div>
   </div>
 
-  <!-- Location chart -->
-  <div class="card">
-    <div class="card-header"><div class="card-title">Revenue by gym location (ex gym products)</div></div>
-    <div class="chart-wrap"><canvas id="locChart"></canvas></div>
-    <div class="loc-legend" id="locLegend"></div>
-  </div>
-
   <!-- Top products -->
   <div class="card">
     <div class="card-header">
@@ -230,7 +223,7 @@ function dodWeekLabel(wk){
 // ── State ─────────────────────────────────────────────────────────────────────
 let gymData = {daily:{},tops:{},branches:[]};
 let momLoc=0, wowLoc=0, dodLoc=0;
-let momC, wowC, locC, dodC;
+let momC, wowC, dodC;
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 function saveCache(data){ try{ localStorage.setItem(CACHE_KEY,JSON.stringify(data)); }catch(e){} }
@@ -483,25 +476,6 @@ function render(){
   document.getElementById("kOrd").innerHTML=kpi.orders.toLocaleString("en-AU");
   document.getElementById("kMoM").innerHTML=momLast!=null?pill(momLast):"—";
   document.getElementById("kWoW").innerHTML=wowLast!=null?pill(wowLast):"—";
-
-  // Location chart
-  const locRevs=calcLoc(daily,days);
-  const locBranches=Object.keys(locRevs).sort();
-  if(locC) locC.destroy();
-  locC=new Chart(document.getElementById("locChart"),{
-    type:"bar",
-    data:{labels:locBranches,datasets:[{data:locBranches.map(b=>locRevs[b]),
-      backgroundColor:locBranches.map((_,i)=>PAL[i%PAL.length]),borderRadius:4,maxBarThickness:60}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
-      scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:10},maxRotation:45}},
-              y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
-  });
-  document.getElementById("locLegend").innerHTML=locBranches.map((b,i)=>
-    `<div style="display:flex;align-items:center;gap:5px">
-      <div style="width:8px;height:8px;border-radius:50%;background:${PAL[i%PAL.length]};flex-shrink:0"></div>
-      <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[b])}</span>
-    </div>`).join('');
 
   // Top products
   const topLoc=document.getElementById("topLocSel").value;
