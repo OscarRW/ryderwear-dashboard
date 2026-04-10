@@ -41,12 +41,12 @@ button:hover{background:#2a2a3e}
 .spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;gap:12px}
 .spin{width:40px;height:40px;border:3px solid #2a2a3e;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.prog-bar{width:280px;height:4px;background:#2a2a3e;border-radius:4px;overflow:hidden}
+.prog-bar{width:300px;height:4px;background:#2a2a3e;border-radius:4px;overflow:hidden}
 .prog-fill{height:4px;background:#6366f1;border-radius:4px;transition:width .3s}
 .error-box{background:#1e1e2e;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:480px;margin:80px auto;text-align:center}
 #app{display:none}
 .top-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.sel-sm{font-size:11px!important;padding:4px 8px!important;border-radius:6px!important;background:#252538!important;border-color:#333!important}
+.sms{font-size:11px!important;padding:4px 8px!important;border-radius:6px!important;background:#252538!important;border-color:#333!important}
 @media(max-width:700px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-row{grid-template-columns:1fr}.top-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -56,7 +56,7 @@ button:hover{background:#2a2a3e}
   <div class="spin"></div>
   <div id="loadMsg" style="color:#aaa;font-size:14px">Connecting to Cin7…</div>
   <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
-  <div style="color:#555;font-size:12px">Loading 12 months · all locations</div>
+  <div id="loadSub" style="color:#555;font-size:12px">Loading 12 months of gym orders…</div>
 </div>
 <div id="errorBox" class="error-box" style="display:none">
   <div style="font-size:32px;margin-bottom:12px">⚠️</div>
@@ -92,7 +92,7 @@ button:hover{background:#2a2a3e}
       <div class="card-header">
         <div class="card-title">Month-on-month revenue (ex gym products)</div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <select id="momPeriodSel" class="sel-sm">
+          <select id="momPeriodSel" class="sms">
             <option value="30">30 days</option>
             <option value="60">60 days</option>
             <option value="90">90 days</option>
@@ -120,7 +120,7 @@ button:hover{background:#2a2a3e}
   <div class="card">
     <div class="card-header">
       <div class="card-title">Revenue by gym location (ex gym products)</div>
-      <select id="locMonthSel" class="sel-sm" style="font-size:12px!important;padding:5px 10px!important">
+      <select id="locMonthSel" style="font-size:12px;padding:5px 10px">
         <option value="all">12 months</option>
       </select>
     </div>
@@ -130,20 +130,23 @@ button:hover{background:#2a2a3e}
 
   <div class="card">
     <div class="card-header">
-      <div class="card-title">Top products <span id="topPeriodLabel" style="color:#555;font-weight:400;font-size:11px;margin-left:6px"></span></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div class="card-title">Top products</div>
+        <span id="topPeriodLabel" style="font-size:11px;color:#555"></span>
+      </div>
       <select id="topLocSel" style="font-size:12px;padding:5px 10px">
         <option value="all">All locations</option>
       </select>
     </div>
     <div class="top-grid">
       <div>
-        <div style="font-size:12px;font-weight:600;color:#aaa;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">
+        <div style="font-size:12px;font-weight:600;color:#6366f1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">
           Top products — excluding gym products
         </div>
         <div id="topExGym"></div>
       </div>
       <div>
-        <div style="font-size:12px;font-weight:600;color:#aaa;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">
+        <div style="font-size:12px;font-weight:600;color:#10b981;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">
           Top products — gym products only
         </div>
         <div id="topGymOnly"></div>
@@ -153,6 +156,7 @@ button:hover{background:#2a2a3e}
 </div>
 
 <script>
+// ── Config ───────────────────────────────────────────────────────────────────
 const GYM_BRANCH_MAP = {
   401072:"Flinders Park, SA", 660561:"Tranmere, SA",   661430:"Midvale, WA",
   670812:"Malaga, WA",        670813:"Alberton, SA",    735636:"Hackham, SA",
@@ -160,9 +164,12 @@ const GYM_BRANCH_MAP = {
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
 const GYM_IDS = Object.keys(GYM_BRANCH_MAP).join(",");
-const GYM_KW  = ["lifting strap","resistance band","wrist wrap","figure-8","foam roller","dip belt","knee sleeve","lifting belt","gym bag","weightlifting belt","pilates gym bag","silicone lifting","power resistance band"];
-const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
+// Gym EQUIPMENT keywords (items like lifting straps, chalk etc.)
+const GYM_KW = ["lifting strap","silicone lifting","resistance band","wrist wrap","figure-8 strap","foam roller","dip belt","knee sleeve","lifting belt","weightlifting belt","pilates gym bag","power resistance band"];
+const PAL    = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
+const MAX_PAGES = 400; // 100,000 orders max ≈ 12–15 months
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
 const $m   = v => "$"+Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
 const $k   = v => v>=1e6?"$"+Math.round(v/1e6)+"M":v>=1e3?"$"+Math.round(v/1e3)+"k":"$"+Math.round(v||0);
 const pct  = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
@@ -171,13 +178,24 @@ const grow = (a,b) => b>0?((a-b)/b)*100:0;
 const sleep= ms => new Promise(r=>setTimeout(r,ms));
 const isGP = li => GYM_KW.some(k=>(li.name||"").toLowerCase().includes(k));
 
-// Strip clothing size suffix for display name
-const baseName = li => {
-  const n = li.name||"Unknown";
-  return n.replace(/\s+-\s+(XS|S|M|L|XL|XXL|2XL|3XL|4XL|XXXL|ONE SIZE)$/i,"").trim();
+// Clothing size pattern — strips final size variant from name
+const SIZE_PAT = /^(XS|S|M|L|XL|XXL|2XL|3XL|4XL|XXXL|ONE SIZE|OSFM|Regular\s*[\/]?\s*[SMLX]+|\d{1,2})$/i;
+
+// Group key: use styleCode (groups all sizes of same product/colour together)
+const prodKey = li => {
+  const sc = (li.styleCode||"").trim();
+  return sc || (li.name||"Unknown");
 };
-// Group key: styleCode for clothing (groups all sizes), name for others
-const productKey = li => li.styleCode && li.styleCode.trim() ? li.styleCode.trim() : (li.name||"Unknown");
+
+// Display name: strip clothing size suffix when 3+ parts in name
+const prodName = li => {
+  const n = li.name || "Unknown";
+  const parts = n.split(" - ");
+  if(parts.length >= 3 && SIZE_PAT.test(parts[parts.length-1].trim())){
+    return parts.slice(0,-1).join(" - ");
+  }
+  return n;
+};
 
 function isoWeek(d){
   const t=new Date(d);t.setHours(0,0,0,0);
@@ -185,76 +203,69 @@ function isoWeek(d){
   const y=t.getFullYear();
   return`${y}-W${String(Math.ceil(((t-new Date(y,0,1))/864e5+1)/7)).padStart(2,"0")}`;
 }
-const wLabel=k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
-const mLabel=k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
-const mLabelLong=k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"long",year:"numeric"});};
+const wLabel = k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
+const mLabel = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
+const mLong  = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"long",year:"numeric"});};
 
 let allOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
 
-// ── Data loading: month by month ─────────────────────────────────────────────
-async function fetchMonth(year, month) {
-  const nextM = month===12?1:month+1;
-  const nextY = month===12?year+1:year;
-  const from  = `${year}-${String(month).padStart(2,"0")}-01T00:00:00Z`;
-  const to    = `${nextY}-${String(nextM).padStart(2,"0")}-01T00:00:00Z`;
-  const where = `branchId IN (${GYM_IDS}) AND createdDate>='${from}' AND createdDate<'${to}'`;
-  const orders= [];
-  let page=1, done=false;
-  while(!done && page<=50){
-    const batch=[page,page+1,page+2].filter(p=>p<=50);
-    const results=await Promise.all(batch.map(async p=>{
-      const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page:p,where});
-      const r=await fetch(`/api/cin7?${qs}`);
-      if(!r.ok) return [];
-      const d=await r.json();
-      return Array.isArray(d)?d:(d.data||[]);
-    }));
-    for(const rows of results){
-      if(!rows.length){done=true;break;}
-      orders.push(...rows);
-      if(rows.length<250){done=true;break;}
-    }
-    page+=3;
-    if(!done) await sleep(400);
-  }
-  return orders;
-}
-
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 async function loadData(){
   document.getElementById("loading").style.display="flex";
   document.getElementById("app").style.display="none";
   document.getElementById("errorBox").style.display="none";
   document.getElementById("progFill").style.width="0%";
   allOrders=[];
+
   try{
-    const now=new Date();
-    let all=[];
-    for(let m=0;m<12;m++){
-      const d=new Date(now.getFullYear(),now.getMonth()-m,1);
-      const label=d.toLocaleString("en-AU",{month:"long",year:"numeric"});
-      document.getElementById("loadMsg").textContent=`Loading ${label}… (${all.length.toLocaleString()} orders)`;
-      document.getElementById("progFill").style.width=Math.round((m/12)*100)+"%";
-      const monthData=await fetchMonth(d.getFullYear(),d.getMonth()+1);
-      all.push(...monthData);
-      await sleep(300);
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth()-13); // stop when we reach 13 months ago
+    const where  = `branchId IN (${GYM_IDS})`;
+    let all=[], page=1, done=false;
+
+    while(!done && page<=MAX_PAGES){
+      const prog=Math.min(98,Math.round((page/MAX_PAGES)*100));
+      document.getElementById("progFill").style.width=prog+"%";
+      document.getElementById("loadMsg").textContent=
+        `Loading gym orders… ${all.length.toLocaleString()} found`;
+
+      // 3 concurrent pages per batch (stays within Cin7's 3 req/sec)
+      const batch=[page,page+1,page+2].filter(p=>p<=MAX_PAGES);
+      const results=await Promise.all(batch.map(async p=>{
+        const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page:p,where});
+        const r=await fetch(`/api/cin7?${qs}`);
+        if(!r.ok) return [];
+        const d=await r.json();
+        return Array.isArray(d)?d:(d.data||[]);
+      }));
+
+      for(const rows of results){
+        if(!rows.length){done=true;break;}
+        all.push(...rows);
+        const last=new Date(rows[rows.length-1].createdDate||0);
+        if(last<cutoff||rows.length<250){done=true;break;}
+      }
+      page+=3;
+      if(!done) await sleep(400);
     }
+
     document.getElementById("progFill").style.width="100%";
     allOrders=all;
 
-    // Populate selectors
+    // Build calendar months for location filter
+    const monthKeys=[...new Set(all.map(inv=>{
+      const d=new Date(inv.createdDate||0);
+      return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    }))].sort().reverse();
+    document.getElementById("locMonthSel").innerHTML=
+      '<option value="all">12 months</option>'+
+      monthKeys.map(k=>`<option value="${k}">${mLong(k)}</option>`).join('');
+
+    // Build gym location options for top products
     const branches=[...new Set(all.map(i=>GYM_BRANCH_MAP[i.branchId]).filter(Boolean))].sort();
     document.getElementById("topLocSel").innerHTML=
       '<option value="all">All locations</option>'+
       branches.map(b=>`<option value="${b}">${b}</option>`).join('');
-
-    // Calendar months for location chart
-    const months=[...new Set(all.map(inv=>{
-      const d=new Date(inv.createdDate||0);
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    }))].sort().reverse();
-    document.getElementById("locMonthSel").innerHTML=
-      '<option value="all">12 months</option>'+
-      months.map(mk=>`<option value="${mk}">${mLabelLong(mk)}</option>`).join('');
 
     document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
     document.getElementById("loading").style.display="none";
@@ -298,26 +309,7 @@ function getLocFiltered(){
   }).map(enrich);
 }
 
-// ── Charts ────────────────────────────────────────────────────────────────────
-function makeBar(id,labels,data,existing){
-  const colors=data.map((v,i)=>i===0?"#6366f1":v>=(data[i-1]||0)?"#10b981":"#ef4444");
-  if(existing) existing.destroy();
-  return new Chart(document.getElementById(id),{
-    type:"bar",
-    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4,maxBarThickness:52}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
-      scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},
-              y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
-  });
-}
-function makeBtns(id,branches,active,cb){
-  const el=document.getElementById(id);
-  el.innerHTML=["All locations",...branches].map((b,i)=>
-    `<button class="bb${i===active?" active":""}" data-i="${i}">${b}</button>`).join('');
-  el.querySelectorAll(".bb").forEach(b=>b.addEventListener("click",()=>cb(+b.dataset.i)));
-}
-
+// ── Calcs ──────────────────────────────────────────────────────────────────────
 function calcMoM(invs){
   const m={};
   invs.forEach(inv=>{
@@ -340,11 +332,30 @@ function calcWoW(invs){
     prev:i>0?w[arr[i-1]].rev:0,growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0}));
 }
 
+// ── Charts ────────────────────────────────────────────────────────────────────
+function makeBar(id,labels,data,existing){
+  const colors=data.map((v,i)=>i===0?"#6366f1":v>=(data[i-1]||0)?"#10b981":"#ef4444");
+  if(existing) existing.destroy();
+  return new Chart(document.getElementById(id),{
+    type:"bar",
+    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4,maxBarThickness:52}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
+      scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},
+              y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
+  });
+}
+function makeBtns(id,branches,active,cb){
+  const el=document.getElementById(id);
+  el.innerHTML=["All locations",...branches].map((b,i)=>
+    `<button class="bb${i===active?" active":""}" data-i="${i}">${b}</button>`).join('');
+  el.querySelectorAll(".bb").forEach(b=>b.addEventListener("click",()=>cb(+b.dataset.i)));
+}
 function renderTop(elId,lines,color){
   const m={};
   lines.forEach(li=>{
-    const key=productKey(li);
-    if(!m[key]) m[key]={name:baseName(li),total:0,qty:0};
+    const key=prodKey(li);
+    if(!m[key]) m[key]={name:prodName(li),total:0,qty:0};
     m[key].total+=parseFloat(li.unitPrice||0)*(li.qty||1);
     m[key].qty  +=parseFloat(li.qty||0);
   });
@@ -377,16 +388,19 @@ function render(){
   const momInvs=momLoc===0?momFiltered:momFiltered.filter(i=>i._b===branches[momLoc-1]);
   const wowInvs=wowLoc===0?filtered   :filtered.filter(i=>i._b===branches[wowLoc-1]);
 
+  // MoM
   const momData=calcMoM(momInvs);
   momC=makeBar("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
   document.getElementById("momSummary").innerHTML=momData.slice(-3).map(d=>
     `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
+  // WoW
   const wowData=calcWoW(wowInvs);
   wowC=makeBar("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
   document.getElementById("wowSummary").innerHTML=wowData.slice(-3).map(d=>
     `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
+  // KPIs
   const totalRev=filtered.reduce((s,i)=>s+i._ng,0);
   const momLast =momData.length>=2?momData[momData.length-1].growth:null;
   const wowLast =wowData.length>=2?wowData[wowData.length-1].growth:null;
@@ -394,10 +408,18 @@ function render(){
   document.getElementById("kOrd").innerHTML=filtered.length.toLocaleString("en-AU");
   document.getElementById("kMoM").innerHTML=momLast!=null?pill(momLast):"—";
   document.getElementById("kWoW").innerHTML=wowLast!=null?pill(wowLast):"—";
-  document.getElementById("subline").textContent=
-    `${allOrders.length.toLocaleString()} gym orders loaded · ${branches.length} locations · live from Cin7`;
 
-  // Location chart (uses its own filter)
+  // Oldest and newest dates for subline
+  const dates=allOrders.map(i=>new Date(i.createdDate||0)).filter(d=>d.getFullYear()>2000);
+  const oldest=dates.length?new Date(Math.min(...dates)):null;
+  const newest=dates.length?new Date(Math.max(...dates)):null;
+  const dateRange=oldest&&newest?
+    ` · ${oldest.toLocaleString("en-AU",{month:"short",year:"numeric"})} – ${newest.toLocaleString("en-AU",{month:"short",year:"numeric"})}`:
+    "";
+  document.getElementById("subline").textContent=
+    `${allOrders.length.toLocaleString()} gym orders · ${branches.length} locations${dateRange} · live from Cin7`;
+
+  // Location bar chart (uses its own month filter)
   const locBranches=[...new Set(locFiltered.map(i=>i._b).filter(b=>b&&b!=="Unknown"))].sort();
   const locRevs=locBranches.map(b=>locFiltered.filter(i=>i._b===b).reduce((s,i)=>s+i._ng,0));
   if(locC) locC.destroy();
@@ -415,12 +437,12 @@ function render(){
       <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[i])}</span>
     </div>`).join('');
 
-  // Top products (uses perSel filtered data)
-  const perLabel=document.getElementById("perSel").selectedOptions[0]?.text||"";
-  document.getElementById("topPeriodLabel").textContent=`· ${perLabel}`;
+  // Top products — uses perSel (90 day etc.) filtered data
+  const perTxt=document.getElementById("perSel").selectedOptions[0]?.text||"";
+  document.getElementById("topPeriodLabel").textContent=`· ${perTxt}`;
   const topLoc=document.getElementById("topLocSel").value;
-  const topInvs=topLoc==="all"?filtered:filtered.filter(i=>i._b===topLoc);
-  const allLines=topInvs.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li)})));
+  const topBase=topLoc==="all"?filtered:filtered.filter(i=>i._b===topLoc);
+  const allLines=topBase.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li)})));
   renderTop("topExGym",  allLines.filter(l=>!l._gp),"#6366f1");
   renderTop("topGymOnly",allLines.filter(l=> l._gp),"#10b981");
 }
