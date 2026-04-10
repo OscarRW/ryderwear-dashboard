@@ -95,10 +95,8 @@ button:hover{background:#2a2a3e}
           <select id="momPeriodSel" class="sms">
             <option value="30">30 days</option>
             <option value="60">60 days</option>
-            <option value="90">90 days</option>
-            <option value="180">6 months</option>
-            <option value="270">9 months</option>
-            <option value="365" selected>12 months</option>
+            <option value="90" selected>90 days</option>
+            <option value="180">All available</option>
           </select>
           <div class="branch-btns" id="momBtns"></div>
         </div>
@@ -116,6 +114,14 @@ button:hover{background:#2a2a3e}
     </div>
   </div>
   <div style="height:16px"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Revenue by gym location (ex gym products)</div>
+    </div>
+    <div class="chart-wrap"><canvas id="locChart"></canvas></div>
+    <div class="loc-legend" id="locLegend"></div>
+  </div>
 
   <div class="card">
     <div class="card-header">
@@ -199,52 +205,53 @@ const wLabel = k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
 const mLabel = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
 const mLong  = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"long",year:"numeric"});};
 
-let allOrders=[], momLoc=0, wowLoc=0, momC, wowC;
+let allOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
+// ── Fetch: one gym at a time, 3 pages parallel within each gym ───────────────
+async function fetchGymHistory(branchId) {
+  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth()-13);
+  const orders = []; let page=1, done=false;
+  while(!done && page<=60){
+    const batch=[page,page+1,page+2];
+    const results=await Promise.all(batch.map(async p=>{
+      const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page:p,where:`branchId=${branchId}`});
+      const r=await fetch(`/api/cin7?${qs}`);
+      if(!r.ok) return [];
+      const d=await r.json();
+      return Array.isArray(d)?d:(d.data||[]);
+    }));
+    for(const rows of results){
+      if(!rows.length){done=true;break;}
+      orders.push(...rows);
+      const last=new Date(rows[rows.length-1].createdDate||0);
+      if(last<cutoff||rows.length<250){done=true;break;}
+    }
+    page+=3;
+    if(!done) await sleep(600); // 3 req per 1.1s = 2.7/sec, safely under Cin7 limit
+  }
+  return orders;
+}
+
 async function loadData(){
   document.getElementById("loading").style.display="flex";
   document.getElementById("app").style.display="none";
   document.getElementById("errorBox").style.display="none";
   document.getElementById("progFill").style.width="0%";
   allOrders=[];
-
   try{
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth()-13); // stop when we reach 13 months ago
-    const where  = `branchId IN (${GYM_IDS})`;
-    let all=[], page=1, done=false;
-
-    while(!done && page<=MAX_PAGES){
-      const prog=Math.min(98,Math.round((page/MAX_PAGES)*100));
-      document.getElementById("progFill").style.width=prog+"%";
-      document.getElementById("loadMsg").textContent=
-        `Loading gym orders… ${all.length.toLocaleString()} found`;
-
-      // 3 concurrent pages per batch (stays within Cin7's 3 req/sec)
-      const batch=[page,page+1,page+2].filter(p=>p<=MAX_PAGES);
-      const results=await Promise.all(batch.map(async p=>{
-        const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page:p,where});
-        const r=await fetch(`/api/cin7?${qs}`);
-        if(!r.ok) return [];
-        const d=await r.json();
-        return Array.isArray(d)?d:(d.data||[]);
-      }));
-
-      for(const rows of results){
-        if(!rows.length){done=true;break;}
-        all.push(...rows);
-        const last=new Date(rows[rows.length-1].createdDate||0);
-        if(last<cutoff||rows.length<250){done=true;break;}
-      }
-      page+=3;
-      if(!done) await sleep(400);
+    const entries=Object.entries(GYM_BRANCH_MAP);
+    let all=[];
+    for(let g=0;g<entries.length;g++){
+      const [id,name]=entries[g];
+      document.getElementById("progFill").style.width=Math.round((g/entries.length)*100)+"%";
+      document.getElementById("loadMsg").textContent=`Loading ${name} (${g+1}/${entries.length})…`;
+      const gymData=await fetchGymHistory(id);
+      all.push(...gymData);
+      await sleep(600); // pause between gyms
     }
-
     document.getElementById("progFill").style.width="100%";
     allOrders=all;
 
-    // Build gym location options for top products
     const branches=[...new Set(all.map(i=>GYM_BRANCH_MAP[i.branchId]).filter(Boolean))].sort();
     document.getElementById("topLocSel").innerHTML=
       '<option value="all">All locations</option>'+
@@ -391,6 +398,24 @@ function render(){
     "";
   document.getElementById("subline").textContent=
     `${allOrders.length.toLocaleString()} gym orders · ${branches.length} locations${dateRange} · live from Cin7`;
+
+  // Location bar chart
+  const locBranches=[...new Set(filtered.map(i=>i._b).filter(b=>b&&b!=="Unknown"))].sort();
+  const locRevs=locBranches.map(b=>filtered.filter(i=>i._b===b).reduce((s,i)=>s+i._ng,0));
+  if(locC) locC.destroy();
+  locC=new Chart(document.getElementById("locChart"),{
+    type:"bar",
+    data:{labels:locBranches,datasets:[{data:locRevs,backgroundColor:locBranches.map((_,i)=>PAL[i%PAL.length]),borderRadius:4,maxBarThickness:60}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
+      scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:10},maxRotation:45}},
+              y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
+  });
+  document.getElementById("locLegend").innerHTML=locBranches.map((b,i)=>
+    `<div style="display:flex;align-items:center;gap:5px">
+      <div style="width:8px;height:8px;border-radius:50%;background:${PAL[i%PAL.length]};flex-shrink:0"></div>
+      <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[i])}</span>
+    </div>`).join('');
 
   // Top products
   const perTxt=document.getElementById("perSel").selectedOptions[0]?.text||"";
