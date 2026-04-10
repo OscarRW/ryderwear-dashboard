@@ -27,6 +27,7 @@ button:hover{background:#2a2a3e}
 .bb{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #2a2a3e;background:transparent;color:#666;cursor:pointer;white-space:nowrap}
 .bb.active{background:#2a2a3e;color:#fff;border-color:#444}.bb:hover{background:#252538}
 .chart-wrap{position:relative;height:220px}
+.dod-wrap{position:relative;height:260px}
 .summary{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;font-size:12px;color:#666}
 .summary b{color:#ccc;font-weight:600}
 .top-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
@@ -43,9 +44,11 @@ button:hover{background:#2a2a3e}
 .prog-bar{width:300px;height:4px;background:#2a2a3e;border-radius:4px;overflow:hidden}
 .prog-fill{height:4px;background:#6366f1;border-radius:4px;transition:width .3s}
 .error-box{background:#1e1e2e;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:480px;margin:80px auto;text-align:center}
+.load-banner{background:#181828;border:1px solid #6366f140;border-radius:8px;padding:8px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
 #app{display:none}
 .top-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .sms{font-size:11px!important;padding:4px 8px!important;border-radius:6px!important;background:#252538!important;border-color:#333!important}
+.dod-day-label{font-size:11px;color:#555;text-align:center;margin-top:4px}
 @media(max-width:700px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-row{grid-template-columns:1fr}.top-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -55,7 +58,7 @@ button:hover{background:#2a2a3e}
   <div class="spin"></div>
   <div id="loadMsg" style="color:#aaa;font-size:14px">Connecting to Cin7…</div>
   <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
-  <div id="loadSub" style="color:#555;font-size:12px">First load takes ~3 min · saves locally after</div>
+  <div id="loadSub" style="color:#555;font-size:12px">First load ~90s · saves locally after</div>
 </div>
 <div id="errorBox" class="error-box" style="display:none">
   <div style="font-size:32px;margin-bottom:12px">⚠️</div>
@@ -67,6 +70,14 @@ button:hover{background:#2a2a3e}
 <div id="app">
   <h1>Ryderwear Gyms — Sales analytics</h1>
   <div class="sub" id="subline">Live from Cin7</div>
+
+  <!-- Progressive loading banner — shows while remaining gyms fetch in background -->
+  <div id="loadBanner" class="load-banner" style="display:none">
+    <div class="spin" style="width:16px;height:16px;border-width:2px;flex-shrink:0"></div>
+    <span id="bannerMsg" style="font-size:12px;color:#8888cc;flex:1"></span>
+    <div class="prog-bar" style="width:120px"><div class="prog-fill" id="bannerProg" style="width:0%"></div></div>
+  </div>
+
   <div class="toolbar">
     <select id="perSel">
       <option value="7">Last 7 days</option>
@@ -86,6 +97,7 @@ button:hover{background:#2a2a3e}
     <div class="kpi" style="border-left:4px solid #ec4899"><div class="kpi-label">WoW growth</div><div class="kpi-value" id="kWoW">—</div></div>
   </div>
 
+  <!-- MoM & WoW -->
   <div class="charts-row">
     <div class="card" style="margin-bottom:0">
       <div class="card-header">
@@ -114,12 +126,25 @@ button:hover{background:#2a2a3e}
   </div>
   <div style="height:16px"></div>
 
+  <!-- Day-on-Day chart (NEW) -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Day-on-day revenue (ex gym products)</div>
+      <select id="dodWeekSel" class="sms" style="min-width:200px;font-size:12px!important;padding:5px 10px!important"></select>
+    </div>
+    <div class="branch-btns" id="dodBtns" style="margin-bottom:14px"></div>
+    <div class="dod-wrap"><canvas id="dodChart"></canvas></div>
+    <div class="summary" id="dodSummary"></div>
+  </div>
+
+  <!-- Location chart -->
   <div class="card">
     <div class="card-header"><div class="card-title">Revenue by gym location (ex gym products)</div></div>
     <div class="chart-wrap"><canvas id="locChart"></canvas></div>
     <div class="loc-legend" id="locLegend"></div>
   </div>
 
+  <!-- Top products -->
   <div class="card">
     <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px">
@@ -154,60 +179,72 @@ const GYM_BRANCH_MAP = {
 const GYM_KW  = ["lifting strap","silicone lifting","resistance band","wrist wrap","figure-8 strap","foam roller","dip belt","knee sleeve","lifting belt","weightlifting belt","pilates gym bag","power resistance band"];
 const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
 const CACHE_KEY = "rwgym_v3";
-const CACHE_TTL = 23 * 3600 * 1000; // 23 hours
+const CACHE_TTL = 23 * 3600 * 1000;
+const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const $m   = v => "$"+Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
 const $k   = v => v>=1e6?"$"+Math.round(v/1e6)+"M":v>=1e3?"$"+Math.round(v/1e3)+"k":"$"+Math.round(v||0);
-const pct  = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
-const pill = v => `<span class="pill ${v>=0?"up":"dn"}">${pct(v)}</span>`;
+const pctFmt = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
+const pill = v => `<span class="pill ${v>=0?"up":"dn"}">${pctFmt(v)}</span>`;
 const grow = (a,b) => b>0?((a-b)/b)*100:0;
-const sleep= ms => new Promise(r=>setTimeout(r,ms));
-const isGP = li => GYM_KW.some(k=>(li.name||"").toLowerCase().includes(k));
-const GARMENT_SIZES=/^(XS|S|M|L|XL|2XL|XXL|3XL|4XL|XXXL|ONE SIZE|OSFM|Regular\s*[\/]?\s*[SMLX]+|\d{1,2})$/i;
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const isGP  = li => GYM_KW.some(k=>(li.name||"").toLowerCase().includes(k));
+const GARMENT_SIZES = /^(XS|S|M|L|XL|2XL|XXL|3XL|4XL|XXXL|ONE SIZE|OSFM|Regular\s*[\/]?\s*[SMLX]+|\d{1,2})$/i;
 const isClothing = li => GARMENT_SIZES.test((li.option2||"").trim());
 const prodKey  = li => (li.styleCode||"").trim() || (li.name||"Unknown");
 const prodName = li => {
   if(!li.styleCode) return li.name||"Unknown";
-  const parts=(li.name||"Unknown").split(" - ");
+  const parts = (li.name||"Unknown").split(" - ");
   if(parts.length>=3 && GARMENT_SIZES.test(parts[parts.length-1].trim())) return parts.slice(0,-1).join(" - ");
   return li.name||"Unknown";
 };
 
 function isoWeek(d){
-  const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+4-(t.getDay()||7));
+  const t=new Date(d); t.setHours(0,0,0,0); t.setDate(t.getDate()+4-(t.getDay()||7));
   const y=t.getFullYear();
-  return`${y}-W${String(Math.ceil(((t-new Date(y,0,1))/864e5+1)/7)).padStart(2,"0")}`;
+  return `${y}-W${String(Math.ceil(((t-new Date(y,0,1))/864e5+1)/7)).padStart(2,"0")}`;
 }
-const wLabel=k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
-const mLabel=k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
+const wLabel = k => { const[y,w]=k.split("-W"); return `W${w}'${y.slice(2)}`; };
+const mLabel = k => { const[y,m]=k.split("-"); return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"}); };
+
+// Get the Monday of an ISO week key like "2026-W15"
+function getWeekMonday(wk){
+  const [y,w] = wk.split("-W").map(Number);
+  const jan4 = new Date(y,0,4);
+  const mon1 = new Date(jan4);
+  mon1.setDate(jan4.getDate()-((jan4.getDay()+6)%7));
+  const mon = new Date(mon1);
+  mon.setDate(mon1.getDate()+(w-1)*7);
+  return mon;
+}
+// "W15 '26 · 7 Apr – 13 Apr"
+function dodWeekLabel(wk){
+  const mon = getWeekMonday(wk);
+  const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  const fmt = d => `${d.getDate()} ${d.toLocaleString("en-AU",{month:"short"})}`;
+  const [y,w] = wk.split("-W");
+  return `W${w} '${y.slice(2)} · ${fmt(mon)} – ${fmt(sun)}`;
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
-// gymData.daily: {"2025-04-15": {"Alberton, SA": [ng, gym, orders], ...}}
-// gymData.tops:  {"90|all": {ex:[...], gm:[...]}, "90|Alberton, SA": {...}, ...}
-// gymData.branches: [...]
-let gymData={daily:{},tops:{},branches:[]};
-let momLoc=0, wowLoc=0, momC, wowC, locC;
+let gymData = {daily:{},tops:{},branches:[]};
+let momLoc=0, wowLoc=0, dodLoc=0;
+let momC, wowC, locC, dodC;
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
-function saveCache(data){
-  try{ localStorage.setItem(CACHE_KEY, JSON.stringify(data)); }catch(e){}
-}
+function saveCache(data){ try{ localStorage.setItem(CACHE_KEY,JSON.stringify(data)); }catch(e){} }
 function loadCache(){
   try{
-    const raw=localStorage.getItem(CACHE_KEY);
-    if(!raw) return null;
-    const d=JSON.parse(raw);
+    const raw = localStorage.getItem(CACHE_KEY); if(!raw) return null;
+    const d = JSON.parse(raw);
     if(Date.now()-d.timestamp>CACHE_TTL){ localStorage.removeItem(CACHE_KEY); return null; }
     return d;
   }catch(e){ return null; }
 }
-function hardRefresh(){
-  localStorage.removeItem(CACHE_KEY);
-  location.reload();
-}
+function hardRefresh(){ localStorage.removeItem(CACHE_KEY); location.reload(); }
 
-// ── Build cache structure from raw orders ─────────────────────────────────────
+// ── Build gym data from raw orders ────────────────────────────────────────────
 function computeTopList(lines){
   const m={};
   lines.forEach(li=>{
@@ -242,7 +279,7 @@ function buildGymData(allOrders){
 
   const branches=[...new Set(Object.values(daily).flatMap(d=>Object.keys(d)))].sort();
 
-  // Pre-compute top products for each period × location
+  // Pre-compute top products per period × location
   const PERIODS=[7,14,30,60,90];
   const tops={};
   PERIODS.forEach(days=>{
@@ -261,42 +298,51 @@ function buildGymData(allOrders){
   return { timestamp:Date.now(), daily, tops, branches, totalOrders:allOrders.length };
 }
 
-// ── Data calculations from gymData ────────────────────────────────────────────
-function calcMoM(daily, branch, days){
+// ── Calculations ──────────────────────────────────────────────────────────────
+function calcMoM(daily,branch,days){
   const cut=days>0?new Date(Date.now()-days*864e5):null;
   const m={};
   Object.entries(daily).forEach(([date,branches])=>{
     if(cut&&new Date(date)<cut) return;
     const k=date.substring(0,7);
     if(!m[k]) m[k]={rev:0,orders:0};
-    if(branch==="all"){
-      Object.values(branches).forEach(([ng,,ord])=>{m[k].rev+=ng;m[k].orders+=ord;});
-    }else if(branches[branch]){
-      m[k].rev+=branches[branch][0]; m[k].orders+=branches[branch][2];
-    }
+    if(branch==="all") Object.values(branches).forEach(([ng,,ord])=>{m[k].rev+=ng;m[k].orders+=ord;});
+    else if(branches[branch]){m[k].rev+=branches[branch][0];m[k].orders+=branches[branch][2];}
   });
   const keys=Object.keys(m).sort();
   return keys.map((k,i)=>({label:mLabel(k),revenue:m[k].rev,orders:m[k].orders,
     prev:i>0?m[keys[i-1]].rev:0,growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0}));
 }
 
-function calcWoW(daily, branch){
+function calcWoW(daily,branch){
   const w={};
   Object.entries(daily).forEach(([date,branches])=>{
     const k=isoWeek(new Date(date));
     if(!w[k]) w[k]={rev:0,orders:0};
-    if(branch==="all"){
-      Object.values(branches).forEach(([ng,,ord])=>{w[k].rev+=ng;w[k].orders+=ord;});
-    }else if(branches[branch]){
-      w[k].rev+=branches[branch][0]; w[k].orders+=branches[branch][2];
-    }
+    if(branch==="all") Object.values(branches).forEach(([ng,,ord])=>{w[k].rev+=ng;w[k].orders+=ord;});
+    else if(branches[branch]){w[k].rev+=branches[branch][0];w[k].orders+=branches[branch][2];}
   });
   const keys=Object.keys(w).sort().slice(-16);
   return keys.map((k,i,arr)=>({label:wLabel(k),revenue:w[k].rev,orders:w[k].orders,
     prev:i>0?w[arr[i-1]].rev:0,growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0}));
 }
 
-function calcKPI(daily, days){
+// Day-on-day: returns [Mon,Tue,Wed,Thu,Fri,Sat,Sun] revenue for the given ISO week
+function calcDoD(daily,branch,weekKey){
+  const totals=[0,0,0,0,0,0,0];
+  Object.entries(daily).forEach(([date,branches])=>{
+    if(isoWeek(new Date(date))!==weekKey) return;
+    const jsDay=new Date(date).getDay(); // 0=Sun
+    const idx=(jsDay+6)%7;              // Mon=0, Sun=6
+    let rev=0;
+    if(branch==="all") Object.values(branches).forEach(([ng])=>rev+=ng);
+    else if(branches[branch]) rev=branches[branch][0];
+    totals[idx]+=rev;
+  });
+  return totals;
+}
+
+function calcKPI(daily,days){
   const cut=new Date(Date.now()-days*864e5);
   let rev=0,orders=0;
   Object.entries(daily).forEach(([date,branches])=>{
@@ -306,7 +352,7 @@ function calcKPI(daily, days){
   return{rev,orders};
 }
 
-function calcLoc(daily, days){
+function calcLoc(daily,days){
   const cut=new Date(Date.now()-days*864e5);
   const loc={};
   Object.entries(daily).forEach(([date,branches])=>{
@@ -316,7 +362,7 @@ function calcLoc(daily, days){
   return loc;
 }
 
-// ── Charts ────────────────────────────────────────────────────────────────────
+// ── Charts & UI helpers ───────────────────────────────────────────────────────
 function makeBar(id,labels,data,existing){
   const colors=data.map((v,i)=>i===0?"#6366f1":v>=(data[i-1]||0)?"#10b981":"#ef4444");
   if(existing) existing.destroy();
@@ -329,12 +375,14 @@ function makeBar(id,labels,data,existing){
               y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
   });
 }
+
 function makeBtns(id,branches,active,cb){
   const el=document.getElementById(id);
   el.innerHTML=["All locations",...branches].map((b,i)=>
     `<button class="bb${i===active?" active":""}" data-i="${i}">${b}</button>`).join('');
   el.querySelectorAll(".bb").forEach(b=>b.addEventListener("click",()=>cb(+b.dataset.i)));
 }
+
 function renderTopList(elId,items,color){
   const max=items[0]?.t||1;
   document.getElementById(elId).innerHTML=items.length?items.map((r,i)=>`
@@ -349,30 +397,85 @@ function renderTopList(elId,items,color){
     </div>`).join(''):'<div style="color:#444;text-align:center;padding:32px">No data</div>';
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Selectors setup (called after each gym batch loads) ───────────────────────
+function setupSelectors(){
+  // Top location dropdown
+  document.getElementById("topLocSel").innerHTML=
+    '<option value="all">All locations</option>'+
+    gymData.branches.map(b=>`<option value="${b}">${b}</option>`).join('');
+
+  // DoD week dropdown — last 16 weeks descending
+  const weeks=[...new Set(Object.keys(gymData.daily).map(d=>isoWeek(new Date(d))))].sort().reverse().slice(0,16);
+  const dodSel=document.getElementById("dodWeekSel");
+  const currentWk=dodSel.value;
+  dodSel.innerHTML=weeks.map(w=>`<option value="${w}">${dodWeekLabel(w)}</option>`).join('');
+  if(currentWk&&weeks.includes(currentWk)) dodSel.value=currentWk;
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
 function render(){
   const {daily,tops,branches}=gymData;
-  const days=parseInt(document.getElementById("perSel").value);
-  const momDays=parseInt(document.getElementById("momPeriodSel").value); // 0 = all
+  if(!Object.keys(daily).length) return;
 
-  const momBranch=momLoc===0?"all":branches[momLoc-1];
-  const wowBranch=wowLoc===0?"all":branches[wowLoc-1];
+  const days=parseInt(document.getElementById("perSel").value);
+  const momDays=parseInt(document.getElementById("momPeriodSel").value);
 
   if(momLoc>branches.length) momLoc=0;
   if(wowLoc>branches.length) wowLoc=0;
+  if(dodLoc>branches.length) dodLoc=0;
+
+  const momBranch=momLoc===0?"all":branches[momLoc-1];
+  const wowBranch=wowLoc===0?"all":branches[wowLoc-1];
+  const dodBranch=dodLoc===0?"all":branches[dodLoc-1];
+
   makeBtns("momBtns",branches,momLoc,i=>{momLoc=i;render();});
   makeBtns("wowBtns",branches,wowLoc,i=>{wowLoc=i;render();});
+  makeBtns("dodBtns",branches,dodLoc,i=>{dodLoc=i;render();});
 
+  // MoM chart
   const momData=calcMoM(daily,momBranch,momDays);
   momC=makeBar("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
   document.getElementById("momSummary").innerHTML=momData.slice(-3).map(d=>
     `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
+  // WoW chart
   const wowData=calcWoW(daily,wowBranch);
   wowC=makeBar("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
   document.getElementById("wowSummary").innerHTML=wowData.slice(-3).map(d=>
     `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
+  // DoD chart — Mon→Sun, weekday indigo, weekend green
+  const weekKey=document.getElementById("dodWeekSel").value;
+  if(weekKey){
+    const dodData=calcDoD(daily,dodBranch,weekKey);
+    // Weekdays (Mon–Fri, idx 0–4) = indigo; Weekend (Sat–Sun, idx 5–6) = teal
+    const dodColors=dodData.map((v,i)=>v===0?"#252538":i>=5?"#10b981":"#6366f1");
+    if(dodC) dodC.destroy();
+    dodC=new Chart(document.getElementById("dodChart"),{
+      type:"bar",
+      data:{labels:DAY_NAMES,datasets:[{data:dodData,backgroundColor:dodColors,borderRadius:6,maxBarThickness:100}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{
+            title: items => DAY_NAMES[items[0].dataIndex],
+            label: c => ` ${$m(c.raw)}`
+          }}
+        },
+        scales:{
+          x:{grid:{display:false},ticks:{color:"#888",font:{size:13,weight:"600"}}},
+          y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}
+        }
+      }
+    });
+    const total=dodData.reduce((s,v)=>s+v,0);
+    const maxV=Math.max(...dodData);
+    const bestDays=DAY_NAMES.filter((_,i)=>dodData[i]===maxV&&maxV>0);
+    document.getElementById("dodSummary").innerHTML=total>0
+      ?`<span><b>Week total:</b> ${$m(total)}</span>${bestDays.length?`<span><b>Best day:</b> ${bestDays.join("/")} (${$m(maxV)})</span>`:""}`
+      :'<span style="color:#444">No data for this week</span>';
+  }
+
+  // KPIs
   const kpi=calcKPI(daily,days);
   const momLast=momData.length>=2?momData[momData.length-1].growth:null;
   const wowLast=wowData.length>=2?wowData[wowData.length-1].growth:null;
@@ -387,7 +490,8 @@ function render(){
   if(locC) locC.destroy();
   locC=new Chart(document.getElementById("locChart"),{
     type:"bar",
-    data:{labels:locBranches,datasets:[{data:locBranches.map(b=>locRevs[b]),backgroundColor:locBranches.map((_,i)=>PAL[i%PAL.length]),borderRadius:4,maxBarThickness:60}]},
+    data:{labels:locBranches,datasets:[{data:locBranches.map(b=>locRevs[b]),
+      backgroundColor:locBranches.map((_,i)=>PAL[i%PAL.length]),borderRadius:4,maxBarThickness:60}]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
       scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:10},maxRotation:45}},
@@ -399,13 +503,12 @@ function render(){
       <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[b])}</span>
     </div>`).join('');
 
-  // Top products (from pre-computed cache)
+  // Top products
   const topLoc=document.getElementById("topLocSel").value;
   const topKey=`${days}|${topLoc}`;
   const topData=tops[topKey]||{ex:[],gm:[]};
-  document.getElementById("topPeriodLabel").textContent=
-    `· ${document.getElementById("perSel").selectedOptions[0]?.text||""}`;
-  renderTopList("topExGym", topData.ex, "#6366f1");
+  document.getElementById("topPeriodLabel").textContent=`· ${document.getElementById("perSel").selectedOptions[0]?.text||""}`;
+  renderTopList("topExGym",topData.ex,"#6366f1");
   renderTopList("topGymOnly",topData.gm,"#10b981");
 
   // Subline
@@ -413,11 +516,11 @@ function render(){
   const from=dates[0]?mLabel(dates[0].substring(0,7)):"";
   const to  =dates[dates.length-1]?mLabel(dates[dates.length-1].substring(0,7)):"";
   document.getElementById("subline").textContent=
-    `${(gymData.totalOrders||0).toLocaleString()} gym orders · ${branches.length} locations · ${from} – ${to} · live from Cin7`;
+    `${(gymData.totalOrders||0).toLocaleString()} gym orders · ${gymData.branches.length} locations · ${from} – ${to} · live from Cin7`;
 }
 
 // ── Fetch one page with retry ─────────────────────────────────────────────────
-async function fetchPage(branchId, page){
+async function fetchPage(branchId,page){
   for(let attempt=0;attempt<4;attempt++){
     if(attempt>0) await sleep(attempt*2000);
     try{
@@ -432,7 +535,30 @@ async function fetchPage(branchId, page){
   return [];
 }
 
-// ── Full data load ────────────────────────────────────────────────────────────
+// ── Fetch all pages for a single gym ─────────────────────────────────────────
+// Runs 3 pages in parallel per batch, stops when data is older than 13 months
+async function fetchGym(id){
+  const cutoff=new Date(); cutoff.setMonth(cutoff.getMonth()-13);
+  const orders=[];
+  let page=1;
+  while(page<=60){
+    const [a,b,c]=await Promise.all([
+      fetchPage(id,page),fetchPage(id,page+1),fetchPage(id,page+2)
+    ]);
+    let stop=false;
+    for(const rows of [a,b,c]){
+      if(!rows.length){stop=true;break;}
+      orders.push(...rows);
+      if(new Date(rows[rows.length-1].createdDate||0)<cutoff||rows.length<250){stop=true;break;}
+    }
+    if(stop) break;
+    page+=3;
+    await sleep(150);
+  }
+  return orders;
+}
+
+// ── Full data load (progressive: shows app after first 2 gyms) ───────────────
 async function loadData(){
   document.getElementById("loading").style.display="flex";
   document.getElementById("app").style.display="none";
@@ -441,64 +567,71 @@ async function loadData(){
 
   try{
     const entries=Object.entries(GYM_BRANCH_MAP);
-    const cutoff=new Date(); cutoff.setMonth(cutoff.getMonth()-13);
     let all=[];
+    let appShown=false;
 
-    for(let g=0;g<entries.length;g++){
-      const [id,name]=entries[g];
-      document.getElementById("progFill").style.width=Math.round((g/entries.length)*100)+"%";
-      document.getElementById("loadMsg").textContent=`Loading ${name} (${g+1} of ${entries.length})`;
+    // Process 2 gyms at a time — halves total wall-clock time
+    for(let g=0;g<entries.length;g+=2){
+      const batch=entries.slice(g,g+2);
+      const names=batch.map(([,n])=>n).join(" & ");
 
-      let page=1;
-      while(page<=60){
-        document.getElementById("loadSub").textContent=`${name} · page ${page}`;
-        // 4 pages in parallel per gym — retry handles any 429s
-        const [a,b,c,d]=await Promise.all([
-          fetchPage(id,page),fetchPage(id,page+1),
-          fetchPage(id,page+2),fetchPage(id,page+3)
-        ]);
-        let stop=false;
-        for(const rows of [a,b,c,d]){
-          if(!rows.length){stop=true;break;}
-          all.push(...rows);
-          if(new Date(rows[rows.length-1].createdDate||0)<cutoff||rows.length<250){stop=true;break;}
+      document.getElementById("loadMsg").textContent=`Loading ${names}…`;
+      document.getElementById("loadSub").textContent=
+        `Gym ${g+1}–${Math.min(g+2,entries.length)} of ${entries.length}`;
+
+      const results=await Promise.all(batch.map(([id])=>fetchGym(id)));
+      all.push(...results.flat());
+
+      const pct=Math.round(((g+batch.length)/entries.length)*100);
+      document.getElementById("progFill").style.width=pct+"%";
+
+      if(all.length>0){
+        gymData=buildGymData(all);
+        setupSelectors();
+        render();
+
+        if(!appShown){
+          document.getElementById("loading").style.display="none";
+          document.getElementById("app").style.display="block";
+          appShown=true;
         }
-        if(stop) break;
-        page+=4;
-        await sleep(150); // minimal pause — retry catches any 429s
+
+        const remaining=entries.length-(g+batch.length);
+        if(remaining>0){
+          document.getElementById("loadBanner").style.display="flex";
+          document.getElementById("bannerMsg").textContent=
+            `Loading ${remaining} more location${remaining!==1?"s":""}…`;
+          document.getElementById("bannerProg").style.width=pct+"%";
+        } else {
+          document.getElementById("loadBanner").style.display="none";
+        }
       }
-      await sleep(300); // short pause between gyms
+
+      await sleep(300);
     }
 
-    document.getElementById("progFill").style.width="100%";
-    document.getElementById("loadSub").textContent="Building charts…";
-
+    // Final full rebuild + save
     gymData=buildGymData(all);
     saveCache(gymData);
-
-    document.getElementById("topLocSel").innerHTML=
-      '<option value="all">All locations</option>'+
-      gymData.branches.map(b=>`<option value="${b}">${b}</option>`).join('');
-    document.getElementById("lastRefresh").textContent=
-      "Updated "+new Date().toLocaleTimeString("en-AU");
-    document.getElementById("loading").style.display="none";
-    document.getElementById("app").style.display="block";
+    setupSelectors();
     render();
+    document.getElementById("loadBanner").style.display="none";
+    document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
+
   }catch(e){
     document.getElementById("loading").style.display="none";
+    document.getElementById("app").style.display="none";
     document.getElementById("errorBox").style.display="block";
     document.getElementById("errMsg").textContent=e.message;
   }
 }
 
-// ── Init: try cache first, then fetch ────────────────────────────────────────
+// ── Init: serve from cache instantly, or fetch ────────────────────────────────
 function init(){
   const cached=loadCache();
   if(cached){
     gymData=cached;
-    document.getElementById("topLocSel").innerHTML=
-      '<option value="all">All locations</option>'+
-      cached.branches.map(b=>`<option value="${b}">${b}</option>`).join('');
+    setupSelectors();
     const age=Math.round((Date.now()-cached.timestamp)/60000);
     document.getElementById("lastRefresh").textContent=
       age<60?`Cached ${age}m ago`:`Cached ${Math.round(age/60)}h ago`;
@@ -513,6 +646,7 @@ function init(){
 document.getElementById("perSel").addEventListener("change",render);
 document.getElementById("momPeriodSel").addEventListener("change",render);
 document.getElementById("topLocSel").addEventListener("change",render);
+document.getElementById("dodWeekSel").addEventListener("change",render);
 init();
 </script>
 </body>
