@@ -392,7 +392,11 @@ function render(){
   document.getElementById("subline").textContent=
     `${allOrders.length.toLocaleString()} gym orders · ${branches.length} locations${dateRange} · live from Cin7`;
 
-  // Top products — excludes clothing AND gym equipment from left, gym equipment only on right
+  // Top products
+  const perTxt=document.getElementById("perSel").selectedOptions[0]?.text||"";
+  document.getElementById("topPeriodLabel").textContent=`· ${perTxt}`;
+  const topLoc=document.getElementById("topLocSel").value;
+  const topBase=topLoc==="all"?filtered:filtered.filter(i=>i._b===topLoc);
   const allLines=topBase.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li),_cloth:isClothing(li)})));
   renderTop("topExGym",  allLines.filter(l=>!l._gp && !l._cloth),"#6366f1");
   renderTop("topGymOnly",allLines.filter(l=> l._gp),"#10b981");
