@@ -207,27 +207,38 @@ const mLong  = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleStri
 
 let allOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
 
-// ── Fetch: one gym at a time, 3 pages parallel within each gym ───────────────
-async function fetchGymHistory(branchId) {
-  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth()-13);
-  const orders = []; let page=1, done=false;
-  while(!done && page<=60){
-    const batch=[page,page+1,page+2];
-    const results=await Promise.all(batch.map(async p=>{
-      const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page:p,where:`branchId=${branchId}`});
+// ── Fetch: sequential single pages with retry on rate limit ──────────────────
+async function fetchPage(branchId, page) {
+  for(let attempt=0; attempt<4; attempt++){
+    if(attempt>0) await sleep(attempt*2000); // 2s, 4s, 6s backoff
+    try{
+      const qs=new URLSearchParams({
+        endpoint:"SalesOrders", rows:250, page,
+        where:`branchId=${branchId}`
+      });
       const r=await fetch(`/api/cin7?${qs}`);
+      if(r.status===429) continue; // rate limited — retry after backoff
       if(!r.ok) return [];
       const d=await r.json();
       return Array.isArray(d)?d:(d.data||[]);
-    }));
-    for(const rows of results){
-      if(!rows.length){done=true;break;}
-      orders.push(...rows);
-      const last=new Date(rows[rows.length-1].createdDate||0);
-      if(last<cutoff||rows.length<250){done=true;break;}
-    }
-    page+=3;
-    if(!done) await sleep(600); // 3 req per 1.1s = 2.7/sec, safely under Cin7 limit
+    }catch(e){ /* network error — retry */ }
+  }
+  return [];
+}
+
+async function fetchGymHistory(branchId, name) {
+  const cutoff=new Date(); cutoff.setMonth(cutoff.getMonth()-13);
+  const orders=[]; let page=1;
+  while(page<=60){
+    document.getElementById("loadSub").textContent=
+      `${name} · page ${page}`;
+    const rows=await fetchPage(branchId, page);
+    if(!rows.length) break;
+    orders.push(...rows);
+    const last=new Date(rows[rows.length-1].createdDate||0);
+    if(last<cutoff||rows.length<250) break;
+    page++;
+    await sleep(350); // 1 req per 0.7s = 1.4 req/sec — well under 3/sec limit
   }
   return orders;
 }
@@ -244,10 +255,11 @@ async function loadData(){
     for(let g=0;g<entries.length;g++){
       const [id,name]=entries[g];
       document.getElementById("progFill").style.width=Math.round((g/entries.length)*100)+"%";
-      document.getElementById("loadMsg").textContent=`Loading ${name} (${g+1}/${entries.length})…`;
-      const gymData=await fetchGymHistory(id);
+      document.getElementById("loadMsg").textContent=
+        `Loading ${name} (${g+1} of ${entries.length})`;
+      const gymData=await fetchGymHistory(id, name);
       all.push(...gymData);
-      await sleep(600); // pause between gyms
+      await sleep(800); // extra pause between gyms
     }
     document.getElementById("progFill").style.width="100%";
     allOrders=all;
