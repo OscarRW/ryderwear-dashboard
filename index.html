@@ -119,17 +119,6 @@ button:hover{background:#2a2a3e}
 
   <div class="card">
     <div class="card-header">
-      <div class="card-title">Revenue by gym location (ex gym products)</div>
-      <select id="locMonthSel" style="font-size:12px;padding:5px 10px">
-        <option value="all">12 months</option>
-      </select>
-    </div>
-    <div class="chart-wrap"><canvas id="locChart"></canvas></div>
-    <div class="loc-legend" id="locLegend"></div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="card-title">Top products</div>
         <span id="topPeriodLabel" style="font-size:11px;color:#555"></span>
@@ -176,6 +165,9 @@ const pct  = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
 const pill = v => `<span class="pill ${v>=0?"up":"dn"}">${pct(v)}</span>`;
 const grow = (a,b) => b>0?((a-b)/b)*100:0;
 const sleep= ms => new Promise(r=>setTimeout(r,ms));
+// Clothing: option2 is a standard garment size
+const GARMENT_SIZES = /^(XS|S|M|L|XL|2XL|XXL|3XL|4XL|XXXL|ONE SIZE|OSFM|6|8|10|12|14|16|18|20|22|24|Regular)$/i;
+const isClothing = li => GARMENT_SIZES.test((li.option2||"").trim());
 const isGP = li => GYM_KW.some(k=>(li.name||"").toLowerCase().includes(k));
 
 // Clothing size pattern — strips final size variant from name
@@ -207,7 +199,7 @@ const wLabel = k=>{const[y,w]=k.split("-W");return`W${w}'${y.slice(2)}`;};
 const mLabel = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"short",year:"2-digit"});};
 const mLong  = k=>{const[y,m]=k.split("-");return new Date(y,m-1,1).toLocaleString("en-AU",{month:"long",year:"numeric"});};
 
-let allOrders=[], momLoc=0, wowLoc=0, momC, wowC, locC;
+let allOrders=[], momLoc=0, wowLoc=0, momC, wowC;
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 async function loadData(){
@@ -251,15 +243,6 @@ async function loadData(){
 
     document.getElementById("progFill").style.width="100%";
     allOrders=all;
-
-    // Build calendar months for location filter
-    const monthKeys=[...new Set(all.map(inv=>{
-      const d=new Date(inv.createdDate||0);
-      return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    }))].sort().reverse();
-    document.getElementById("locMonthSel").innerHTML=
-      '<option value="all">12 months</option>'+
-      monthKeys.map(k=>`<option value="${k}">${mLong(k)}</option>`).join('');
 
     // Build gym location options for top products
     const branches=[...new Set(all.map(i=>GYM_BRANCH_MAP[i.branchId]).filter(Boolean))].sort();
@@ -377,7 +360,6 @@ function renderTop(elId,lines,color){
 function render(){
   const filtered   =getFiltered();
   const momFiltered=getMomFiltered();
-  const locFiltered=getLocFiltered();
   const branches   =[...new Set(filtered.map(i=>i._b).filter(b=>b&&b!=="Unknown"))].sort();
 
   if(momLoc>branches.length) momLoc=0;
@@ -437,19 +419,14 @@ function render(){
       <span style="color:#888">${b}:</span><span style="font-weight:600"> ${$m(locRevs[i])}</span>
     </div>`).join('');
 
-  // Top products — uses perSel (90 day etc.) filtered data
-  const perTxt=document.getElementById("perSel").selectedOptions[0]?.text||"";
-  document.getElementById("topPeriodLabel").textContent=`· ${perTxt}`;
-  const topLoc=document.getElementById("topLocSel").value;
-  const topBase=topLoc==="all"?filtered:filtered.filter(i=>i._b===topLoc);
-  const allLines=topBase.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li)})));
-  renderTop("topExGym",  allLines.filter(l=>!l._gp),"#6366f1");
+  // Top products — excludes clothing AND gym equipment from left, gym equipment only on right
+  const allLines=topBase.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li),_cloth:isClothing(li)})));
+  renderTop("topExGym",  allLines.filter(l=>!l._gp && !l._cloth),"#6366f1");
   renderTop("topGymOnly",allLines.filter(l=> l._gp),"#10b981");
 }
 
 document.getElementById("perSel").addEventListener("change",render);
 document.getElementById("momPeriodSel").addEventListener("change",render);
-document.getElementById("locMonthSel").addEventListener("change",render);
 document.getElementById("topLocSel").addEventListener("change",render);
 loadData();
 </script>
