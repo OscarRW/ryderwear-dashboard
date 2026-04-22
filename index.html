@@ -348,20 +348,8 @@ function calcMoM(daily,branch,days){
     else if(branches[branch]){m[k].rev+=branches[branch][0];m[k].orders+=branches[branch][2];}
   });
   const keys=Object.keys(m).sort();
-  return keys.map((k,i)=>{
-    const [y,mon]=k.split("-");
-    const lyKey=`${Number(y)-1}-${mon}`;
-    const lyRev=m[lyKey]?.rev||0;
-    return {
-      label:mLabel(k),
-      revenue:m[k].rev,
-      revenueLy:lyRev,
-      yoy:lyRev>0?grow(m[k].rev,lyRev):0,
-      orders:m[k].orders,
-      prev:i>0?m[keys[i-1]].rev:0,
-      growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0
-    };
-  });
+  return keys.map((k,i)=>({label:mLabel(k),revenue:m[k].rev,orders:m[k].orders,
+    prev:i>0?m[keys[i-1]].rev:0,growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0}));
 }
 
 function calcWoW(daily,branch){
@@ -373,20 +361,8 @@ function calcWoW(daily,branch){
     else if(branches[branch]){w[k].rev+=branches[branch][0];w[k].orders+=branches[branch][2];}
   });
   const keys=Object.keys(w).sort().slice(-16);
-  return keys.map((k,i,arr)=>{
-    const [y,wk]=k.split("-W");
-    const lyKey=`${Number(y)-1}-W${wk}`;
-    const lyRev=w[lyKey]?.rev||0;
-    return {
-      label:wLabel(k),
-      revenue:w[k].rev,
-      revenueLy:lyRev,
-      yoy:lyRev>0?grow(w[k].rev,lyRev):0,
-      orders:w[k].orders,
-      prev:i>0?w[arr[i-1]].rev:0,
-      growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0
-    };
-  });
+  return keys.map((k,i,arr)=>({label:wLabel(k),revenue:w[k].rev,orders:w[k].orders,
+    prev:i>0?w[arr[i-1]].rev:0,growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0}));
 }
 
 // Day-on-day: returns [Mon,Tue,Wed,Thu,Fri,Sat,Sun] revenue for the given ISO week
@@ -431,77 +407,10 @@ function makeBar(id,labels,data,existing){
   return new Chart(document.getElementById(id),{
     type:"bar",
     data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4,maxBarThickness:52}]},
-    options:{responsive:true,maintainAspectRatio:false,
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
       scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},
               y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
-  });
-}
-
-function makeCompareBar(id,labels,current,lastYear,existing){
-  const base = current.map((v,i)=>Math.min(v,lastYear[i]||0));
-  const currentLift = current.map((v,i)=>Math.max(0,v-(lastYear[i]||0)));
-  const lastYearLift = lastYear.map((v,i)=>Math.max(0,v-current[i]));
-  if(existing) existing.destroy();
-  return new Chart(document.getElementById(id),{
-    type:"bar",
-    data:{
-      labels,
-      datasets:[
-        {
-          label:"Shared base",
-          data:base,
-          stack:"compare",
-          backgroundColor:"#2a2a3e",
-          borderRadius:4,
-          maxBarThickness:38
-        },
-        {
-          label:"Current above LY",
-          data:currentLift,
-          stack:"compare",
-          backgroundColor:"#10b981",
-          borderRadius:4,
-          maxBarThickness:38
-        },
-        {
-          label:"LY above Current",
-          data:lastYearLift,
-          stack:"compare",
-          backgroundColor:"#ef4444",
-          borderRadius:4,
-          maxBarThickness:38
-        }
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{
-        legend:{display:true,labels:{color:"#777",boxWidth:10,boxHeight:10}},
-        tooltip:{
-          callbacks:{
-            title: items => items[0]?.label || "",
-            label: c => `${c.dataset.label}: ${$m(c.raw)}`,
-            afterBody: items => {
-              const idx = items[0]?.dataIndex ?? 0;
-              const cur = current[idx]||0;
-              const ly = lastYear[idx]||0;
-              const yoy = ly>0 ? grow(cur,ly) : 0;
-              return [
-                `Current total: ${$m(cur)}`,
-                `Last year total: ${$m(ly)}`,
-                ly>0 ? `YoY: ${pctFmt(yoy)}` : "YoY: n/a"
-              ];
-            }
-          }
-        }
-      },
-      scales:{
-        x:{stacked:true,grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},
-        y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}
-      }
-    }
   });
 }
 
@@ -569,27 +478,15 @@ function render(){
 
   // MoM chart
   const momData=calcMoM(daily,momBranch,momDays);
-  momC=makeCompareBar(
-    "momChart",
-    momData.map(d=>d.label),
-    momData.map(d=>d.revenue),
-    momData.map(d=>d.revenueLy),
-    momC
-  );
+  momC=makeBar("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
   document.getElementById("momSummary").innerHTML=momData.slice(-3).map(d=>
-    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""} ${d.revenueLy>0?`<span style="color:#666">vs LY ${pctFmt(d.yoy)}</span>`:""}</span>`).join('');
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
   // WoW chart
   const wowData=calcWoW(daily,wowBranch);
-  wowC=makeCompareBar(
-    "wowChart",
-    wowData.map(d=>d.label),
-    wowData.map(d=>d.revenue),
-    wowData.map(d=>d.revenueLy),
-    wowC
-  );
+  wowC=makeBar("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
   document.getElementById("wowSummary").innerHTML=wowData.slice(-3).map(d=>
-    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""} ${d.revenueLy>0?`<span style="color:#666">vs LY ${pctFmt(d.yoy)}</span>`:""}</span>`).join('');
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
 
   // DoD chart — Mon→Sun, weekday indigo, weekend green
   const weekKey=document.getElementById("dodWeekSel").value;
@@ -601,7 +498,7 @@ function render(){
     dodC=new Chart(document.getElementById("dodChart"),{
       type:"bar",
       data:{labels:DAY_NAMES,datasets:[{data:dodData,backgroundColor:dodColors,borderRadius:6,maxBarThickness:100}]},
-      options:{responsive:true,maintainAspectRatio:false,
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
         plugins:{legend:{display:false},
           tooltip:{callbacks:{
             title: items => DAY_NAMES[items[0].dataIndex],
