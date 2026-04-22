@@ -4,7 +4,6 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Ryderwear Gyms — Sales Analytics</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#13131f;color:#fff;padding:24px;min-height:100vh}
@@ -86,7 +85,8 @@ button:hover{background:#2a2a3e}
       <option value="60">Last 60 days</option>
       <option value="90" selected>Last 90 days</option>
     </select>
-    <button onclick="hardRefresh()">↻ Refresh data</button>
+    <button onclick="refreshData()">↻ Refresh data</button>
+    <button onclick="hardRefresh()">Hard refresh</button>
     <span id="lastRefresh" style="font-size:12px;color:#444;margin-left:4px"></span>
   </div>
 
@@ -171,9 +171,13 @@ const GYM_BRANCH_MAP = {
 };
 const GYM_KW  = ["lifting strap","silicone lifting","resistance band","wrist wrap","figure-8 strap","foam roller","dip belt","knee sleeve","lifting belt","weightlifting belt","pilates gym bag","power resistance band"];
 const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const CACHE_KEY = "rwgym_v3";
+const CACHE_KEY = "rwgym_v4";
 const CACHE_TTL = 23 * 3600 * 1000;
 const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const HISTORY_MONTHS = 12;
+const CHART_JS_SRC = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
+const GYM_BATCH_SIZE = 3;
+const FETCH_PAGE_BATCH = 4;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const $m   = v => "$"+Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -224,6 +228,9 @@ function dodWeekLabel(wk){
 let gymData = {daily:{},tops:{},branches:[]};
 let momLoc=0, wowLoc=0, dodLoc=0;
 let momC, wowC, dodC;
+let chartReadyPromise = null;
+const branchBtnState = { momBtns:"", wowBtns:"", dodBtns:"" };
+let isLoadingData = false;
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 function saveCache(data){ try{ localStorage.setItem(CACHE_KEY,JSON.stringify(data)); }catch(e){} }
@@ -231,11 +238,26 @@ function loadCache(){
   try{
     const raw = localStorage.getItem(CACHE_KEY); if(!raw) return null;
     const d = JSON.parse(raw);
-    if(Date.now()-d.timestamp>CACHE_TTL){ localStorage.removeItem(CACHE_KEY); return null; }
+    d.isStale = Date.now()-d.timestamp>CACHE_TTL;
     return d;
   }catch(e){ return null; }
 }
 function hardRefresh(){ localStorage.removeItem(CACHE_KEY); location.reload(); }
+function refreshData(){ loadData({background:true, forceFresh:true}); }
+
+function ensureChartJs(){
+  if(window.Chart) return Promise.resolve();
+  if(chartReadyPromise) return chartReadyPromise;
+  chartReadyPromise = new Promise((resolve,reject)=>{
+    const s=document.createElement("script");
+    s.src=CHART_JS_SRC;
+    s.async=true;
+    s.onload=()=>resolve();
+    s.onerror=()=>reject(new Error("Failed to load chart library"));
+    document.head.appendChild(s);
+  });
+  return chartReadyPromise;
+}
 
 // ── Build gym data from raw orders ────────────────────────────────────────────
 function computeTopList(lines){
@@ -251,6 +273,22 @@ function computeTopList(lines){
 
 function buildGymData(allOrders){
   const daily={};
+  const PERIODS=[7,14,30,60,90];
+  const now = Date.now();
+  const periodCuts = {};
+  PERIODS.forEach(days=>{ periodCuts[days] = now - (days*864e5); });
+  const topBuckets = {};
+  const addTop = (days,loc,li,isGym,isCl)=>{
+    const key = `${days}|${loc}`;
+    if(!topBuckets[key]) topBuckets[key]={ex:{},gm:{}};
+    const bucket = isGym ? topBuckets[key].gm : (!isCl ? topBuckets[key].ex : null);
+    if(!bucket) return;
+    const pKey=prodKey(li);
+    if(!bucket[pKey]) bucket[pKey]={n:prodName(li),t:0,q:0};
+    bucket[pKey].t += parseFloat(li.unitPrice||0)*(li.qty||1);
+    bucket[pKey].q += parseFloat(li.qty||0);
+  };
+
   allOrders.forEach(inv=>{
     const branch=GYM_BRANCH_MAP[inv.branchId]; if(!branch) return;
     const lines=inv.lineItems||[];
@@ -268,22 +306,29 @@ function buildGymData(allOrders){
     daily[date][branch][0]+=ng;
     daily[date][branch][1]+=gym;
     daily[date][branch][2]+=1;
+
+    const createdTs = new Date(inv.createdDate||0).getTime();
+    if(!lines.length || !Number.isFinite(createdTs)) return;
+    PERIODS.forEach(days=>{
+      if(createdTs < periodCuts[days]) return;
+      lines.forEach(li=>{
+        const isGym = isGP(li);
+        const isCl = isClothing(li);
+        addTop(days,"all",li,isGym,isCl);
+        addTop(days,branch,li,isGym,isCl);
+      });
+    });
   });
 
   const branches=[...new Set(Object.values(daily).flatMap(d=>Object.keys(d)))].sort();
-
-  // Pre-compute top products per period × location
-  const PERIODS=[7,14,30,60,90];
   const tops={};
   PERIODS.forEach(days=>{
-    const cut=new Date(Date.now()-days*864e5);
-    const pOrders=allOrders.filter(i=>new Date(i.createdDate||0)>=cut);
     ["all",...branches].forEach(loc=>{
-      const lOrders=loc==="all"?pOrders:pOrders.filter(i=>GYM_BRANCH_MAP[i.branchId]===loc);
-      const lines=lOrders.flatMap(inv=>(inv.lineItems||[]).map(li=>({...li,_gp:isGP(li),_cl:isClothing(li)})));
-      tops[`${days}|${loc}`]={
-        ex: computeTopList(lines.filter(l=>!l._gp&&!l._cl)),
-        gm: computeTopList(lines.filter(l=>l._gp))
+      const key = `${days}|${loc}`;
+      const b = topBuckets[key] || {ex:{},gm:{}};
+      tops[key]={
+        ex: Object.values(b.ex).filter(r=>r.t>0).sort((a,b)=>b.t-a.t).slice(0,15),
+        gm: Object.values(b.gm).filter(r=>r.t>0).sort((a,b)=>b.t-a.t).slice(0,15)
       };
     });
   });
@@ -303,8 +348,20 @@ function calcMoM(daily,branch,days){
     else if(branches[branch]){m[k].rev+=branches[branch][0];m[k].orders+=branches[branch][2];}
   });
   const keys=Object.keys(m).sort();
-  return keys.map((k,i)=>({label:mLabel(k),revenue:m[k].rev,orders:m[k].orders,
-    prev:i>0?m[keys[i-1]].rev:0,growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0}));
+  return keys.map((k,i)=>{
+    const [y,mon]=k.split("-");
+    const lyKey=`${Number(y)-1}-${mon}`;
+    const lyRev=m[lyKey]?.rev||0;
+    return {
+      label:mLabel(k),
+      revenue:m[k].rev,
+      revenueLy:lyRev,
+      yoy:lyRev>0?grow(m[k].rev,lyRev):0,
+      orders:m[k].orders,
+      prev:i>0?m[keys[i-1]].rev:0,
+      growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0
+    };
+  });
 }
 
 function calcWoW(daily,branch){
@@ -316,8 +373,20 @@ function calcWoW(daily,branch){
     else if(branches[branch]){w[k].rev+=branches[branch][0];w[k].orders+=branches[branch][2];}
   });
   const keys=Object.keys(w).sort().slice(-16);
-  return keys.map((k,i,arr)=>({label:wLabel(k),revenue:w[k].rev,orders:w[k].orders,
-    prev:i>0?w[arr[i-1]].rev:0,growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0}));
+  return keys.map((k,i,arr)=>{
+    const [y,wk]=k.split("-W");
+    const lyKey=`${Number(y)-1}-W${wk}`;
+    const lyRev=w[lyKey]?.rev||0;
+    return {
+      label:wLabel(k),
+      revenue:w[k].rev,
+      revenueLy:lyRev,
+      yoy:lyRev>0?grow(w[k].rev,lyRev):0,
+      orders:w[k].orders,
+      prev:i>0?w[arr[i-1]].rev:0,
+      growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0
+    };
+  });
 }
 
 // Day-on-day: returns [Mon,Tue,Wed,Thu,Fri,Sat,Sun] revenue for the given ISO week
@@ -369,11 +438,84 @@ function makeBar(id,labels,data,existing){
   });
 }
 
+function makeCompareBar(id,labels,current,lastYear,existing){
+  const base = current.map((v,i)=>Math.min(v,lastYear[i]||0));
+  const currentLift = current.map((v,i)=>Math.max(0,v-(lastYear[i]||0)));
+  const lastYearLift = lastYear.map((v,i)=>Math.max(0,v-current[i]));
+  if(existing) existing.destroy();
+  return new Chart(document.getElementById(id),{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        {
+          label:"Shared base",
+          data:base,
+          stack:"compare",
+          backgroundColor:"#2a2a3e",
+          borderRadius:4,
+          maxBarThickness:38
+        },
+        {
+          label:"Current above LY",
+          data:currentLift,
+          stack:"compare",
+          backgroundColor:"#10b981",
+          borderRadius:4,
+          maxBarThickness:38
+        },
+        {
+          label:"LY above Current",
+          data:lastYearLift,
+          stack:"compare",
+          backgroundColor:"#ef4444",
+          borderRadius:4,
+          maxBarThickness:38
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,labels:{color:"#777",boxWidth:10,boxHeight:10}},
+        tooltip:{
+          callbacks:{
+            title: items => items[0]?.label || "",
+            label: c => `${c.dataset.label}: ${$m(c.raw)}`,
+            afterBody: items => {
+              const idx = items[0]?.dataIndex ?? 0;
+              const cur = current[idx]||0;
+              const ly = lastYear[idx]||0;
+              const yoy = ly>0 ? grow(cur,ly) : 0;
+              return [
+                `Current total: ${$m(cur)}`,
+                `Last year total: ${$m(ly)}`,
+                ly>0 ? `YoY: ${pctFmt(yoy)}` : "YoY: n/a"
+              ];
+            }
+          }
+        }
+      },
+      scales:{
+        x:{stacked:true,grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},
+        y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}
+      }
+    }
+  });
+}
+
 function makeBtns(id,branches,active,cb){
   const el=document.getElementById(id);
-  el.innerHTML=["All locations",...branches].map((b,i)=>
-    `<button class="bb${i===active?" active":""}" data-i="${i}">${b}</button>`).join('');
-  el.querySelectorAll(".bb").forEach(b=>b.addEventListener("click",()=>cb(+b.dataset.i)));
+  const signature = branches.join("|");
+  if(branchBtnState[id]!==signature){
+    el.innerHTML=["All locations",...branches].map((b,i)=>
+      `<button class="bb${i===active?" active":""}" data-i="${i}">${b}</button>`).join('');
+    el.querySelectorAll(".bb").forEach(b=>b.addEventListener("click",()=>cb(+b.dataset.i)));
+    branchBtnState[id]=signature;
+    return;
+  }
+  el.querySelectorAll(".bb").forEach((b,i)=>b.classList.toggle("active", i===active));
 }
 
 function renderTopList(elId,items,color){
@@ -427,15 +569,27 @@ function render(){
 
   // MoM chart
   const momData=calcMoM(daily,momBranch,momDays);
-  momC=makeBar("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
+  momC=makeCompareBar(
+    "momChart",
+    momData.map(d=>d.label),
+    momData.map(d=>d.revenue),
+    momData.map(d=>d.revenueLy),
+    momC
+  );
   document.getElementById("momSummary").innerHTML=momData.slice(-3).map(d=>
-    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""} ${d.revenueLy>0?`<span style="color:#666">vs LY ${pctFmt(d.yoy)}</span>`:""}</span>`).join('');
 
   // WoW chart
   const wowData=calcWoW(daily,wowBranch);
-  wowC=makeBar("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
+  wowC=makeCompareBar(
+    "wowChart",
+    wowData.map(d=>d.label),
+    wowData.map(d=>d.revenue),
+    wowData.map(d=>d.revenueLy),
+    wowC
+  );
   document.getElementById("wowSummary").innerHTML=wowData.slice(-3).map(d=>
-    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""} ${d.revenueLy>0?`<span style="color:#666">vs LY ${pctFmt(d.yoy)}</span>`:""}</span>`).join('');
 
   // DoD chart — Mon→Sun, weekday indigo, weekend green
   const weekKey=document.getElementById("dodWeekSel").value;
@@ -510,84 +664,95 @@ async function fetchPage(branchId,page){
 }
 
 // ── Fetch all pages for a single gym ─────────────────────────────────────────
-// Runs 3 pages in parallel per batch, stops when data is older than 13 months
+// Runs pages in parallel per batch, stops when data is older than configured history window
 async function fetchGym(id){
-  const cutoff=new Date(); cutoff.setMonth(cutoff.getMonth()-13);
+  const cutoff=new Date(); cutoff.setMonth(cutoff.getMonth()-HISTORY_MONTHS);
   const orders=[];
   let page=1;
   while(page<=60){
-    const [a,b,c]=await Promise.all([
-      fetchPage(id,page),fetchPage(id,page+1),fetchPage(id,page+2)
-    ]);
+    const pageJobs=[];
+    for(let i=0;i<FETCH_PAGE_BATCH;i++) pageJobs.push(fetchPage(id,page+i));
+    const pageSets=await Promise.all(pageJobs);
     let stop=false;
-    for(const rows of [a,b,c]){
+    for(const rows of pageSets){
       if(!rows.length){stop=true;break;}
       orders.push(...rows);
       if(new Date(rows[rows.length-1].createdDate||0)<cutoff||rows.length<250){stop=true;break;}
     }
     if(stop) break;
-    page+=3;
-    await sleep(150);
+    page+=FETCH_PAGE_BATCH;
   }
   return orders;
 }
 
 // ── Full data load (progressive: shows app after first 2 gyms) ───────────────
-async function loadData(){
-  document.getElementById("loading").style.display="flex";
-  document.getElementById("app").style.display="none";
+async function loadData(opts={}){
+  if(isLoadingData) return;
+  isLoadingData = true;
+  const background = !!opts.background;
+  const forceFresh = !!opts.forceFresh;
+  if(!background){
+    document.getElementById("loading").style.display="flex";
+    document.getElementById("app").style.display="none";
+  }
   document.getElementById("errorBox").style.display="none";
-  document.getElementById("progFill").style.width="0%";
+  if(background){
+    document.getElementById("loadBanner").style.display="flex";
+    document.getElementById("bannerMsg").textContent="Refreshing data…";
+    document.getElementById("bannerProg").style.width="0%";
+  }
+  if(!background) document.getElementById("progFill").style.width="0%";
 
   try{
     const entries=Object.entries(GYM_BRANCH_MAP);
     let all=[];
-    let appShown=false;
+    let appShown=background;
 
-    // Process 2 gyms at a time — halves total wall-clock time
-    for(let g=0;g<entries.length;g+=2){
-      const batch=entries.slice(g,g+2);
+    for(let g=0;g<entries.length;g+=GYM_BATCH_SIZE){
+      const batch=entries.slice(g,g+GYM_BATCH_SIZE);
       const names=batch.map(([,n])=>n).join(" & ");
 
-      document.getElementById("loadMsg").textContent=`Loading ${names}…`;
-      document.getElementById("loadSub").textContent=
-        `Gym ${g+1}–${Math.min(g+2,entries.length)} of ${entries.length}`;
+      if(!background){
+        document.getElementById("loadMsg").textContent=`Loading ${names}…`;
+        document.getElementById("loadSub").textContent=
+          `Gym ${g+1}–${Math.min(g+GYM_BATCH_SIZE,entries.length)} of ${entries.length}`;
+      }
 
       const results=await Promise.all(batch.map(([id])=>fetchGym(id)));
       all.push(...results.flat());
 
       const pct=Math.round(((g+batch.length)/entries.length)*100);
-      document.getElementById("progFill").style.width=pct+"%";
+      if(!background) document.getElementById("progFill").style.width=pct+"%";
 
-      if(all.length>0){
+      if(all.length>0 && !appShown){
         gymData=buildGymData(all);
         setupSelectors();
+        await ensureChartJs();
         render();
+        document.getElementById("loading").style.display="none";
+        document.getElementById("app").style.display="block";
+        appShown=true;
+      }
 
-        if(!appShown){
-          document.getElementById("loading").style.display="none";
-          document.getElementById("app").style.display="block";
-          appShown=true;
-        }
-
+      if(appShown){
         const remaining=entries.length-(g+batch.length);
         if(remaining>0){
           document.getElementById("loadBanner").style.display="flex";
-          document.getElementById("bannerMsg").textContent=
-            `Loading ${remaining} more location${remaining!==1?"s":""}…`;
+          document.getElementById("bannerMsg").textContent = forceFresh
+            ? `Refreshing ${remaining} more location${remaining!==1?"s":""}…`
+            : `Loading ${remaining} more location${remaining!==1?"s":""}…`;
           document.getElementById("bannerProg").style.width=pct+"%";
         } else {
           document.getElementById("loadBanner").style.display="none";
         }
       }
-
-      await sleep(300);
     }
 
     // Final full rebuild + save
     gymData=buildGymData(all);
     saveCache(gymData);
     setupSelectors();
+    await ensureChartJs();
     render();
     document.getElementById("loadBanner").style.display="none";
     document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
@@ -597,6 +762,8 @@ async function loadData(){
     document.getElementById("app").style.display="none";
     document.getElementById("errorBox").style.display="block";
     document.getElementById("errMsg").textContent=e.message;
+  }finally{
+    isLoadingData = false;
   }
 }
 
@@ -608,10 +775,17 @@ function init(){
     setupSelectors();
     const age=Math.round((Date.now()-cached.timestamp)/60000);
     document.getElementById("lastRefresh").textContent=
-      age<60?`Cached ${age}m ago`:`Cached ${Math.round(age/60)}h ago`;
+      cached.isStale
+        ? `Cached ${age<60?`${age}m`:`${Math.round(age/60)}h`} ago (refreshing…)`
+        : (age<60?`Cached ${age}m ago`:`Cached ${Math.round(age/60)}h ago`);
     document.getElementById("loading").style.display="none";
     document.getElementById("app").style.display="block";
-    render();
+    ensureChartJs().then(render).catch(e=>{
+      document.getElementById("errorBox").style.display="block";
+      document.getElementById("app").style.display="none";
+      document.getElementById("errMsg").textContent=e.message;
+    });
+    if(cached.isStale) loadData({background:true});
     return;
   }
   loadData();

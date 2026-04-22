@@ -1,4 +1,6 @@
 const https = require("https");
+const API_CACHE_TTL_MS = 3 * 60 * 1000;
+const apiCache = new Map();
 
 module.exports = function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -19,6 +21,11 @@ module.exports = function handler(req, res) {
   if (where) params.set("where", where);
 
   const path = `/api/v1/${endpoint}?${params.toString()}`;
+  const cacheKey = `${endpoint}|${rows}|${page}|${where || ""}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < API_CACHE_TTL_MS) {
+    return res.status(cached.status).json(cached.payload);
+  }
 
   const options = {
     hostname: "api.cin7.com",
@@ -35,7 +42,15 @@ module.exports = function handler(req, res) {
     r.on("data", (chunk) => (data += chunk));
     r.on("end", () => {
       try {
-        res.status(r.statusCode).json(JSON.parse(data));
+        const parsed = JSON.parse(data);
+        if (r.statusCode >= 200 && r.statusCode < 300) {
+          apiCache.set(cacheKey, { ts: Date.now(), status: r.statusCode, payload: parsed });
+          if (apiCache.size > 2000) {
+            const firstKey = apiCache.keys().next().value;
+            if (firstKey) apiCache.delete(firstKey);
+          }
+        }
+        res.status(r.statusCode).json(parsed);
       } catch (e) {
         res.status(500).json({ error: "Parse error", raw: data.slice(0, 300) });
       }
