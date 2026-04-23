@@ -170,7 +170,7 @@ const GYM_BRANCH_MAP = {
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
 const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const CACHE_KEY = "rwgym_v8";  // v8: page until natural end, no early break on createdDate
+const CACHE_KEY = "rwgym_v9";  // v9: slower throttle + robust retries
 const CACHE_TTL = 23 * 3600 * 1000;
 const PRODUCT_CACHE_KEY = "rwgym_products_v1";
 const PRODUCT_CACHE_TTL = 7 * 86400 * 1000;  // products rarely change
@@ -178,7 +178,7 @@ const GYM_CATEGORY = "Gym Products";          // Cin7 category used to flag gym 
 const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const HISTORY_MONTHS = 12;
 const CHART_JS_SRC = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
-const RATE_PER_SEC = 3;       // Cin7 burst limit — all requests share one token bucket
+const RATE_PER_SEC = 2;       // Stay under Cin7 sustained limit (60/min burst, 1/s sustained)
 const RENDER_AFTER_GYMS = 3;  // First paint once this many gyms have loaded
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -589,10 +589,14 @@ async function pumpThrottle(){
   throttlePumping = false;
 }
 
-// ── Fetch one page (throttled, retries on 429/errors) ────────────────────────
+// ── Fetch one page (throttled, with robust retries) ──────────────────────────
+// Retries transient failures (429/5xx/network) up to 6 times with exponential
+// backoff so a rate-limit blip doesn't silently truncate a gym's pagination.
+// Only permanent 4xx (non-429) surfaces as an empty page.
 async function fetchPage(branchId, page){
-  for(let attempt = 0; attempt < 4; attempt++){
-    if(attempt > 0) await sleep(attempt * 2000);
+  let lastStatus = null;
+  for(let attempt = 0; attempt < 6; attempt++){
+    if(attempt > 0) await sleep(Math.min(30000, 1500 * Math.pow(2, attempt - 1)));
     await throttle();
     try{
       const qs = new URLSearchParams({
@@ -602,30 +606,36 @@ async function fetchPage(branchId, page){
         where:`branchId=${branchId}`
       });
       const r = await fetch(`/api/cin7?${qs}`);
-      if(r.status === 429) continue;
-      if(!r.ok) return [];
+      lastStatus = r.status;
+      if(r.status === 429 || r.status >= 500){ continue; }
+      if(!r.ok){ console.warn(`[cin7] branch ${branchId} page ${page} → ${r.status} (giving up)`); return { rows:[], failed:true, status:r.status }; }
       const d = await r.json();
-      return Array.isArray(d) ? d : (d.data || []);
-    }catch(e){}
+      const rows = Array.isArray(d) ? d : (d.data || []);
+      return { rows, failed:false, status:200 };
+    }catch(e){ /* network error — retry */ }
   }
-  return [];
+  console.warn(`[cin7] branch ${branchId} page ${page} → ${lastStatus} after 6 attempts`);
+  return { rows:[], failed:true, status:lastStatus };
 }
 
-// ── Fetch one page of Products (throttled, retries on 429/errors) ────────────
+// ── Fetch one page of Products (same retry shape as fetchPage) ───────────────
 async function fetchProductPage(page){
-  for(let attempt = 0; attempt < 4; attempt++){
-    if(attempt > 0) await sleep(attempt * 2000);
+  let lastStatus = null;
+  for(let attempt = 0; attempt < 6; attempt++){
+    if(attempt > 0) await sleep(Math.min(30000, 1500 * Math.pow(2, attempt - 1)));
     await throttle();
     try{
       const qs = new URLSearchParams({endpoint:"Products", rows:250, page});
       const r = await fetch(`/api/cin7?${qs}`);
-      if(r.status === 429) continue;
-      if(!r.ok) return [];
+      lastStatus = r.status;
+      if(r.status === 429 || r.status >= 500){ continue; }
+      if(!r.ok){ return { rows:[], failed:true, status:r.status }; }
       const d = await r.json();
-      return Array.isArray(d) ? d : (d.data || []);
+      const rows = Array.isArray(d) ? d : (d.data || []);
+      return { rows, failed:false, status:200 };
     }catch(e){}
   }
-  return [];
+  return { rows:[], failed:true, status:lastStatus };
 }
 
 // ── Fetch all products, build {productId: category} map ──────────────────────
@@ -633,7 +643,8 @@ async function fetchProductPage(page){
 async function fetchAllProducts(){
   const map = {};
   for(let page = 1; page <= 40; page++){
-    const rows = await fetchProductPage(page);
+    const { rows, failed } = await fetchProductPage(page);
+    if(failed) break;
     if(!rows.length) break;
     for(const p of rows){ if(p && p.id != null && p.category) map[p.id] = p.category; }
     if(rows.length < 250) break;
@@ -643,16 +654,16 @@ async function fetchAllProducts(){
 
 // ── Fetch all pages for one gym ──────────────────────────────────────────────
 // Cin7's default sort for SalesOrders is modifiedDate DESC, so the last row
-// of any page has an unpredictable createdDate. Breaking on createdDate<cutoff
-// stops the fetch too early — recently-modified old orders on page 1 can
-// trigger the break and leave in-period orders on unfetched pages. So we just
-// page until empty/partial (capped at 80 pages = 20,000 orders per gym), and
-// let buildGymData keep everything it receives; month/week/day charts can
-// render whatever history comes back.
+// of any page has an unpredictable createdDate. We page until genuinely empty
+// (or partial), capped at 80 pages per gym. On a permanent failure (non-429,
+// non-5xx) we stop for this gym, but don't conflate that with "end of data":
+// we skip the break on `rows.length < 250` only when failed=false so a
+// rate-limit blip that exhausted retries doesn't masquerade as end-of-data.
 async function fetchGym(id){
   const orders = [];
   for(let page = 1; page <= 80; page++){
-    const rows = await fetchPage(id, page);
+    const { rows, failed } = await fetchPage(id, page);
+    if(failed) break;
     if(!rows.length) break;
     orders.push(...rows);
     if(rows.length < 250) break;
