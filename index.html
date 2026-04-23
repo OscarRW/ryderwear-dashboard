@@ -176,8 +176,8 @@ const CACHE_TTL = 23 * 3600 * 1000;
 const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const HISTORY_MONTHS = 12;
 const CHART_JS_SRC = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
-const GYM_BATCH_SIZE = 3;
-const FETCH_PAGE_BATCH = 4;
+const RATE_PER_SEC = 3;       // Cin7 burst limit — all requests share one token bucket
+const RENDER_AFTER_GYMS = 3;  // First paint once this many gyms have loaded
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const $m   = v => "$"+Number(v||0).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -544,40 +544,63 @@ function render(){
     `${(gymData.totalOrders||0).toLocaleString()} gym orders · ${gymData.branches.length} locations · ${from} – ${to} · live from Cin7`;
 }
 
-// ── Fetch one page with retry ─────────────────────────────────────────────────
-async function fetchPage(branchId,page){
-  for(let attempt=0;attempt<4;attempt++){
-    if(attempt>0) await sleep(attempt*2000);
+// ── Global throttle (single-file dispatcher) ─────────────────────────────────
+// Every request passes through here, so all 11 gyms in parallel still stay
+// under Cin7's rate limit.
+const MIN_GAP_MS = 1000 / RATE_PER_SEC;
+const throttleQueue = [];
+let lastDispatch = 0;
+let throttlePumping = false;
+
+function throttle(){
+  return new Promise(res => {
+    throttleQueue.push(res);
+    pumpThrottle();
+  });
+}
+async function pumpThrottle(){
+  if(throttlePumping) return;
+  throttlePumping = true;
+  while(throttleQueue.length){
+    const wait = Math.max(0, MIN_GAP_MS - (Date.now() - lastDispatch));
+    if(wait > 0) await sleep(wait);
+    lastDispatch = Date.now();
+    throttleQueue.shift()();
+  }
+  throttlePumping = false;
+}
+
+// ── Fetch one page (throttled, retries on 429/errors) ────────────────────────
+async function fetchPage(branchId, page){
+  for(let attempt = 0; attempt < 4; attempt++){
+    if(attempt > 0) await sleep(attempt * 2000);
+    await throttle();
     try{
-      const qs=new URLSearchParams({endpoint:"SalesOrders",rows:250,page,where:`branchId=${branchId}`});
-      const r=await fetch(`/api/cin7?${qs}`);
-      if(r.status===429) continue;
+      const qs = new URLSearchParams({endpoint:"SalesOrders", rows:250, page, where:`branchId=${branchId}`});
+      const r = await fetch(`/api/cin7?${qs}`);
+      if(r.status === 429) continue;
       if(!r.ok) return [];
-      const d=await r.json();
-      return Array.isArray(d)?d:(d.data||[]);
+      const d = await r.json();
+      return Array.isArray(d) ? d : (d.data || []);
     }catch(e){}
   }
   return [];
 }
 
-// ── Fetch all pages for a single gym ─────────────────────────────────────────
-// Runs pages in parallel per batch, stops when data is older than configured history window
+// ── Fetch all pages for one gym ──────────────────────────────────────────────
+// Pages are serial within a gym (each page's last date decides if we need the
+// next one), but all 11 gyms run concurrently — the global throttle interleaves
+// their requests at RATE_PER_SEC.
 async function fetchGym(id){
-  const cutoff=new Date(); cutoff.setMonth(cutoff.getMonth()-HISTORY_MONTHS);
-  const orders=[];
-  let page=1;
-  while(page<=60){
-    const pageJobs=[];
-    for(let i=0;i<FETCH_PAGE_BATCH;i++) pageJobs.push(fetchPage(id,page+i));
-    const pageSets=await Promise.all(pageJobs);
-    let stop=false;
-    for(const rows of pageSets){
-      if(!rows.length){stop=true;break;}
-      orders.push(...rows);
-      if(new Date(rows[rows.length-1].createdDate||0)<cutoff||rows.length<250){stop=true;break;}
-    }
-    if(stop) break;
-    page+=FETCH_PAGE_BATCH;
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
+  const orders = [];
+  for(let page = 1; page <= 60; page++){
+    const rows = await fetchPage(id, page);
+    if(!rows.length) break;
+    orders.push(...rows);
+    const last = new Date(rows[rows.length - 1].createdDate || 0);
+    if(last < cutoff || rows.length < 250) break;
   }
   return orders;
 }
@@ -601,58 +624,68 @@ async function loadData(opts={}){
   if(!background) document.getElementById("progFill").style.width="0%";
 
   try{
-    const entries=Object.entries(GYM_BRANCH_MAP);
-    let all=[];
-    let appShown=background;
+    const entries = Object.entries(GYM_BRANCH_MAP);
+    const all = [];
+    let completed = 0;
+    let appShown = background;
 
-    for(let g=0;g<entries.length;g+=GYM_BATCH_SIZE){
-      const batch=entries.slice(g,g+GYM_BATCH_SIZE);
-      const names=batch.map(([,n])=>n).join(" & ");
-
+    const updateLoadingUI = () => {
+      const pct = Math.round(completed / entries.length * 100);
       if(!background){
-        document.getElementById("loadMsg").textContent=`Loading ${names}…`;
-        document.getElementById("loadSub").textContent=
-          `Gym ${g+1}–${Math.min(g+GYM_BATCH_SIZE,entries.length)} of ${entries.length}`;
+        document.getElementById("loadMsg").textContent = `Loaded ${completed}/${entries.length} gyms`;
+        document.getElementById("loadSub").textContent = `${all.length.toLocaleString()} orders fetched`;
+        document.getElementById("progFill").style.width = pct + "%";
       }
-
-      const results=await Promise.all(batch.map(([id])=>fetchGym(id)));
-      all.push(...results.flat());
-
-      const pct=Math.round(((g+batch.length)/entries.length)*100);
-      if(!background) document.getElementById("progFill").style.width=pct+"%";
-
-      if(all.length>0 && !appShown){
-        gymData=buildGymData(all);
-        setupSelectors();
-        await ensureChartJs();
-        render();
-        document.getElementById("loading").style.display="none";
-        document.getElementById("app").style.display="block";
-        appShown=true;
-      }
-
       if(appShown){
-        const remaining=entries.length-(g+batch.length);
-        if(remaining>0){
-          document.getElementById("loadBanner").style.display="flex";
+        const remaining = entries.length - completed;
+        if(remaining > 0){
+          document.getElementById("loadBanner").style.display = "flex";
           document.getElementById("bannerMsg").textContent = forceFresh
-            ? `Refreshing ${remaining} more location${remaining!==1?"s":""}…`
-            : `Loading ${remaining} more location${remaining!==1?"s":""}…`;
-          document.getElementById("bannerProg").style.width=pct+"%";
+            ? `Refreshing ${remaining} more location${remaining !== 1 ? "s" : ""}…`
+            : `Loading ${remaining} more location${remaining !== 1 ? "s" : ""}…`;
+          document.getElementById("bannerProg").style.width = pct + "%";
         } else {
-          document.getElementById("loadBanner").style.display="none";
+          document.getElementById("loadBanner").style.display = "none";
         }
       }
-    }
+    };
 
-    // Final full rebuild + save
-    gymData=buildGymData(all);
+    const rerender = async () => {
+      gymData = buildGymData([...all]);
+      setupSelectors();
+      if(!appShown){
+        await ensureChartJs();
+        render();
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        appShown = true;
+      } else {
+        render();
+      }
+    };
+
+    // Launch every gym in parallel — the global throttle interleaves their page
+    // requests at RATE_PER_SEC. First paint fires as soon as RENDER_AFTER_GYMS land.
+    const gymPromises = entries.map(async ([id]) => {
+      const orders = await fetchGym(id);
+      all.push(...orders);
+      completed++;
+      updateLoadingUI();
+      if(appShown || completed >= RENDER_AFTER_GYMS){
+        await rerender();
+      }
+    });
+
+    await Promise.all(gymPromises);
+
+    // Final rebuild + cache
+    gymData = buildGymData(all);
     saveCache(gymData);
     setupSelectors();
     await ensureChartJs();
     render();
-    document.getElementById("loadBanner").style.display="none";
-    document.getElementById("lastRefresh").textContent="Updated "+new Date().toLocaleTimeString("en-AU");
+    document.getElementById("loadBanner").style.display = "none";
+    document.getElementById("lastRefresh").textContent = "Updated " + new Date().toLocaleTimeString("en-AU");
 
   }catch(e){
     document.getElementById("loading").style.display="none";
