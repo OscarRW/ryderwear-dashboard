@@ -170,7 +170,7 @@ const GYM_BRANCH_MAP = {
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
 const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const CACHE_KEY = "rwgym_v5";  // v5: gym check driven by Cin7 product category
+const CACHE_KEY = "rwgym_v6";  // v6: fetch sorted by createdDate + server-side date filter
 const CACHE_TTL = 23 * 3600 * 1000;
 const PRODUCT_CACHE_KEY = "rwgym_products_v1";
 const PRODUCT_CACHE_TTL = 7 * 86400 * 1000;  // products rarely change
@@ -590,12 +590,26 @@ async function pumpThrottle(){
 }
 
 // ── Fetch one page (throttled, retries on 429/errors) ────────────────────────
-async function fetchPage(branchId, page){
+// Cin7's default sort for SalesOrders is modifiedDate DESC — which scatters
+// orders by createdDate across pages and breaks any cutoff-on-createdDate
+// logic. We pin the sort to createdDate DESC and also pass a server-side
+// createdDate>= filter so pagination is stable and bounded by the history
+// window.
+async function fetchPage(branchId, page, sinceIso){
   for(let attempt = 0; attempt < 4; attempt++){
     if(attempt > 0) await sleep(attempt * 2000);
     await throttle();
     try{
-      const qs = new URLSearchParams({endpoint:"SalesOrders", rows:250, page, where:`branchId=${branchId}`});
+      const where = sinceIso
+        ? `branchId=${branchId} AND createdDate>='${sinceIso}'`
+        : `branchId=${branchId}`;
+      const qs = new URLSearchParams({
+        endpoint:"SalesOrders",
+        rows:250,
+        page,
+        where,
+        order:"createdDate desc"
+      });
       const r = await fetch(`/api/cin7?${qs}`);
       if(r.status === 429) continue;
       if(!r.ok) return [];
@@ -637,19 +651,19 @@ async function fetchAllProducts(){
 }
 
 // ── Fetch all pages for one gym ──────────────────────────────────────────────
-// Pages are serial within a gym (each page's last date decides if we need the
-// next one), but all 11 gyms run concurrently — the global throttle interleaves
-// their requests at RATE_PER_SEC.
+// Pages are serial within a gym, but all 11 gyms run concurrently — the
+// global throttle interleaves their requests at RATE_PER_SEC. Server-side
+// date filter bounds the result set, so we just page until empty/partial.
 async function fetchGym(id){
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
+  const sinceIso = cutoff.toISOString().slice(0,10);
   const orders = [];
   for(let page = 1; page <= 60; page++){
-    const rows = await fetchPage(id, page);
+    const rows = await fetchPage(id, page, sinceIso);
     if(!rows.length) break;
     orders.push(...rows);
-    const last = new Date(rows[rows.length - 1].createdDate || 0);
-    if(last < cutoff || rows.length < 250) break;
+    if(rows.length < 250) break;
   }
   return orders;
 }

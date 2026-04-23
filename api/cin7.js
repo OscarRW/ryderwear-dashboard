@@ -8,7 +8,7 @@ module.exports = function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const { endpoint, rows = 250, page = 1, where } = req.query;
+  const { endpoint, rows = 250, page = 1, where, order } = req.query;
   if (!endpoint) return res.status(400).json({ error: "Missing endpoint" });
 
   const auth = Buffer.from(
@@ -19,9 +19,10 @@ module.exports = function handler(req, res) {
   params.set("rows", rows);
   params.set("page", page);
   if (where) params.set("where", where);
+  if (order) params.set("order", order);
 
   const path = `/api/v1/${endpoint}?${params.toString()}`;
-  const cacheKey = `${endpoint}|${rows}|${page}|${where || ""}`;
+  const cacheKey = `${endpoint}|${rows}|${page}|${where || ""}|${order || ""}`;
   const cached = apiCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < API_CACHE_TTL_MS) {
     return res.status(cached.status).json(cached.payload);
