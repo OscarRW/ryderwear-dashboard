@@ -169,10 +169,12 @@ const GYM_BRANCH_MAP = {
   751793:"Wanneroo, WA",      800476:"Maddington, WA",  809004:"Munno Para, SA",
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
-const GYM_KW  = ["lifting strap","silicone lifting","resistance band","wrist wrap","figure-8 strap","foam roller","dip belt","knee sleeve","lifting belt","weightlifting belt","pilates gym bag","power resistance band"];
 const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const CACHE_KEY = "rwgym_v4";
+const CACHE_KEY = "rwgym_v5";  // v5: gym check driven by Cin7 product category
 const CACHE_TTL = 23 * 3600 * 1000;
+const PRODUCT_CACHE_KEY = "rwgym_products_v1";
+const PRODUCT_CACHE_TTL = 7 * 86400 * 1000;  // products rarely change
+const GYM_CATEGORY = "Gym Products";          // Cin7 category used to flag gym revenue
 const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const HISTORY_MONTHS = 12;
 const CHART_JS_SRC = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
@@ -186,7 +188,9 @@ const pctFmt = v => (v>=0?"+":"")+Number(v).toFixed(1)+"%";
 const pill = v => `<span class="pill ${v>=0?"up":"dn"}">${pctFmt(v)}</span>`;
 const grow = (a,b) => b>0?((a-b)/b)*100:0;
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
-const isGP  = li => GYM_KW.some(k=>(li.name||"").toLowerCase().includes(k));
+// productId -> Cin7 category string. Populated before any render.
+let PRODUCT_CAT_MAP = {};
+const isGP = li => PRODUCT_CAT_MAP[li.productId] === GYM_CATEGORY;
 const GARMENT_SIZES = /^(XS|S|M|L|XL|2XL|XXL|3XL|4XL|XXXL|ONE SIZE|OSFM|Regular\s*[\/]?\s*[SMLX]+|\d{1,2})$/i;
 const isClothing = li => GARMENT_SIZES.test((li.option2||"").trim());
 const prodKey  = li => (li.styleCode||"").trim() || (li.name||"Unknown");
@@ -242,7 +246,22 @@ function loadCache(){
     return d;
   }catch(e){ return null; }
 }
-function hardRefresh(){ localStorage.removeItem(CACHE_KEY); location.reload(); }
+function saveProductCache(map){
+  try{ localStorage.setItem(PRODUCT_CACHE_KEY,JSON.stringify({ts:Date.now(),map})); }catch(e){}
+}
+function loadProductCache(){
+  try{
+    const raw = localStorage.getItem(PRODUCT_CACHE_KEY); if(!raw) return null;
+    const d = JSON.parse(raw);
+    if(Date.now()-d.ts > PRODUCT_CACHE_TTL) return null;
+    return d.map || null;
+  }catch(e){ return null; }
+}
+function hardRefresh(){
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(PRODUCT_CACHE_KEY);
+  location.reload();
+}
 function refreshData(){ loadData({background:true, forceFresh:true}); }
 
 function ensureChartJs(){
@@ -587,6 +606,36 @@ async function fetchPage(branchId, page){
   return [];
 }
 
+// ── Fetch one page of Products (throttled, retries on 429/errors) ────────────
+async function fetchProductPage(page){
+  for(let attempt = 0; attempt < 4; attempt++){
+    if(attempt > 0) await sleep(attempt * 2000);
+    await throttle();
+    try{
+      const qs = new URLSearchParams({endpoint:"Products", rows:250, page});
+      const r = await fetch(`/api/cin7?${qs}`);
+      if(r.status === 429) continue;
+      if(!r.ok) return [];
+      const d = await r.json();
+      return Array.isArray(d) ? d : (d.data || []);
+    }catch(e){}
+  }
+  return [];
+}
+
+// ── Fetch all products, build {productId: category} map ──────────────────────
+// Cached for 7 days in localStorage — products rarely change.
+async function fetchAllProducts(){
+  const map = {};
+  for(let page = 1; page <= 40; page++){
+    const rows = await fetchProductPage(page);
+    if(!rows.length) break;
+    for(const p of rows){ if(p && p.id != null && p.category) map[p.id] = p.category; }
+    if(rows.length < 250) break;
+  }
+  return map;
+}
+
 // ── Fetch all pages for one gym ──────────────────────────────────────────────
 // Pages are serial within a gym (each page's last date decides if we need the
 // next one), but all 11 gyms run concurrently — the global throttle interleaves
@@ -629,6 +678,16 @@ async function loadData(opts={}){
     let completed = 0;
     let appShown = background;
 
+    // Kick off product-category fetch in parallel with gym fetches.
+    // buildGymData needs PRODUCT_CAT_MAP populated before it runs, so rerender
+    // awaits this promise before the first paint.
+    const cachedProducts = forceFresh ? null : loadProductCache();
+    let productFromCache = !!cachedProducts;
+    if(cachedProducts) PRODUCT_CAT_MAP = cachedProducts;
+    const productPromise = cachedProducts
+      ? Promise.resolve(cachedProducts)
+      : fetchAllProducts().then(m => { PRODUCT_CAT_MAP = m; return m; });
+
     const updateLoadingUI = () => {
       const pct = Math.round(completed / entries.length * 100);
       if(!background){
@@ -651,6 +710,9 @@ async function loadData(opts={}){
     };
 
     const rerender = async () => {
+      // Wait for the product map before the first render; later rerenders are
+      // guaranteed to have it already.
+      if(!appShown) await productPromise;
       gymData = buildGymData([...all]);
       setupSelectors();
       if(!appShown){
@@ -677,6 +739,8 @@ async function loadData(opts={}){
     });
 
     await Promise.all(gymPromises);
+    await productPromise;
+    if(!productFromCache) saveProductCache(PRODUCT_CAT_MAP);
 
     // Final rebuild + cache
     gymData = buildGymData(all);
