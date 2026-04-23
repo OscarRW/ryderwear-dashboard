@@ -170,7 +170,7 @@ const GYM_BRANCH_MAP = {
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
 const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const CACHE_KEY = "rwgym_v7";  // v7: createdSince filter (where-clause AND was rejected)
+const CACHE_KEY = "rwgym_v8";  // v8: page until natural end, no early break on createdDate
 const CACHE_TTL = 23 * 3600 * 1000;
 const PRODUCT_CACHE_KEY = "rwgym_products_v1";
 const PRODUCT_CACHE_TTL = 7 * 86400 * 1000;  // products rarely change
@@ -590,11 +590,7 @@ async function pumpThrottle(){
 }
 
 // ── Fetch one page (throttled, retries on 429/errors) ────────────────────────
-// Cin7's `where` only supports simple equality, so date bounds must go in the
-// top-level `createdSince` param. We also request order by createdDate desc;
-// if Cin7 ignores it, pagination is by modifiedDate desc — either way, the
-// createdSince server-side filter guarantees we only get in-period orders.
-async function fetchPage(branchId, page, sinceIso){
+async function fetchPage(branchId, page){
   for(let attempt = 0; attempt < 4; attempt++){
     if(attempt > 0) await sleep(attempt * 2000);
     await throttle();
@@ -603,10 +599,8 @@ async function fetchPage(branchId, page, sinceIso){
         endpoint:"SalesOrders",
         rows:250,
         page,
-        where:`branchId=${branchId}`,
-        order:"createdDate,desc"
+        where:`branchId=${branchId}`
       });
-      if(sinceIso) qs.set("createdSince", sinceIso);
       const r = await fetch(`/api/cin7?${qs}`);
       if(r.status === 429) continue;
       if(!r.ok) return [];
@@ -648,16 +642,17 @@ async function fetchAllProducts(){
 }
 
 // ── Fetch all pages for one gym ──────────────────────────────────────────────
-// Pages are serial within a gym, but all 11 gyms run concurrently — the
-// global throttle interleaves their requests at RATE_PER_SEC. Server-side
-// date filter bounds the result set, so we just page until empty/partial.
+// Cin7's default sort for SalesOrders is modifiedDate DESC, so the last row
+// of any page has an unpredictable createdDate. Breaking on createdDate<cutoff
+// stops the fetch too early — recently-modified old orders on page 1 can
+// trigger the break and leave in-period orders on unfetched pages. So we just
+// page until empty/partial (capped at 80 pages = 20,000 orders per gym), and
+// let buildGymData keep everything it receives; month/week/day charts can
+// render whatever history comes back.
 async function fetchGym(id){
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
-  const sinceIso = cutoff.toISOString().slice(0,10);
   const orders = [];
-  for(let page = 1; page <= 60; page++){
-    const rows = await fetchPage(id, page, sinceIso);
+  for(let page = 1; page <= 80; page++){
+    const rows = await fetchPage(id, page);
     if(!rows.length) break;
     orders.push(...rows);
     if(rows.length < 250) break;
