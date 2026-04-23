@@ -170,7 +170,7 @@ const GYM_BRANCH_MAP = {
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
 const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const CACHE_KEY = "rwgym_v6";  // v6: fetch sorted by createdDate + server-side date filter
+const CACHE_KEY = "rwgym_v7";  // v7: createdSince filter (where-clause AND was rejected)
 const CACHE_TTL = 23 * 3600 * 1000;
 const PRODUCT_CACHE_KEY = "rwgym_products_v1";
 const PRODUCT_CACHE_TTL = 7 * 86400 * 1000;  // products rarely change
@@ -590,26 +590,23 @@ async function pumpThrottle(){
 }
 
 // ── Fetch one page (throttled, retries on 429/errors) ────────────────────────
-// Cin7's default sort for SalesOrders is modifiedDate DESC — which scatters
-// orders by createdDate across pages and breaks any cutoff-on-createdDate
-// logic. We pin the sort to createdDate DESC and also pass a server-side
-// createdDate>= filter so pagination is stable and bounded by the history
-// window.
+// Cin7's `where` only supports simple equality, so date bounds must go in the
+// top-level `createdSince` param. We also request order by createdDate desc;
+// if Cin7 ignores it, pagination is by modifiedDate desc — either way, the
+// createdSince server-side filter guarantees we only get in-period orders.
 async function fetchPage(branchId, page, sinceIso){
   for(let attempt = 0; attempt < 4; attempt++){
     if(attempt > 0) await sleep(attempt * 2000);
     await throttle();
     try{
-      const where = sinceIso
-        ? `branchId=${branchId} AND createdDate>='${sinceIso}'`
-        : `branchId=${branchId}`;
       const qs = new URLSearchParams({
         endpoint:"SalesOrders",
         rows:250,
         page,
-        where,
-        order:"createdDate desc"
+        where:`branchId=${branchId}`,
+        order:"createdDate,desc"
       });
+      if(sinceIso) qs.set("createdSince", sinceIso);
       const r = await fetch(`/api/cin7?${qs}`);
       if(r.status === 429) continue;
       if(!r.ok) return [];
