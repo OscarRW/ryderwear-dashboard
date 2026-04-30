@@ -57,7 +57,7 @@ button:hover{background:#2a2a3e}
   <div class="spin"></div>
   <div id="loadMsg" style="color:#aaa;font-size:14px">Connecting to Cin7…</div>
   <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
-  <div id="loadSub" style="color:#555;font-size:12px">First load ~90s · saves locally after</div>
+  <div id="loadSub" style="color:#555;font-size:12px">First load ~30s · saves locally after</div>
 </div>
 <div id="errorBox" class="error-box" style="display:none">
   <div style="font-size:32px;margin-bottom:12px">⚠️</div>
@@ -170,15 +170,15 @@ const GYM_BRANCH_MAP = {
   855500:"Rockingham, WA",    891359:"Mandurah, WA"
 };
 const PAL     = ["#6366f1","#10b981","#f59e0b","#ec4899","#3b82f6","#14b8a6","#8b5cf6","#f97316","#06b6d4","#84cc16","#a855f7"];
-const CACHE_KEY = "rwgym_v9";  // v9: slower throttle + robust retries
+const CACHE_KEY = "rwgym_v11"; // v11: order.total source-of-truth, 6mo window
 const CACHE_TTL = 23 * 3600 * 1000;
 const PRODUCT_CACHE_KEY = "rwgym_products_v1";
 const PRODUCT_CACHE_TTL = 7 * 86400 * 1000;  // products rarely change
 const GYM_CATEGORY = "Gym Products";          // Cin7 category used to flag gym revenue
 const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const HISTORY_MONTHS = 12;
+const HISTORY_MONTHS = 6;
 const CHART_JS_SRC = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
-const RATE_PER_SEC = 2;       // Stay under Cin7 sustained limit (60/min burst, 1/s sustained)
+const RATE_PER_SEC = 3;       // Cin7 published limit: 3 req/sec, 60/min, 5000/day
 const RENDER_AFTER_GYMS = 3;  // First paint once this many gyms have loaded
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -291,6 +291,19 @@ function computeTopList(lines){
 }
 
 function buildGymData(allOrders){
+  // Defensive dedupe by order id — same order id should never count twice,
+  // even if pagination overlap or progressive rebuilds re-include it.
+  const seenOrders = new Set();
+  const orders = [];
+  for(const o of allOrders){
+    const oid = o && o.id;
+    if(oid != null){
+      if(seenOrders.has(oid)) continue;
+      seenOrders.add(oid);
+    }
+    orders.push(o);
+  }
+
   const daily={};
   const PERIODS=[7,14,30,60,90];
   const now = Date.now();
@@ -308,16 +321,31 @@ function buildGymData(allOrders){
     bucket[pKey].q += parseFloat(li.qty||0);
   };
 
-  allOrders.forEach(inv=>{
+  orders.forEach(inv=>{
     const branch=GYM_BRANCH_MAP[inv.branchId]; if(!branch) return;
+
+    // `inv.total` is the source-of-truth (matches Cin7's own dashboard — already
+    // accounts for discounts, line totals, etc.). Line items only determine the
+    // gym/non-gym revenue split as a ratio applied to the order total.
+    const orderTotal = parseFloat(inv.total||0);
+    if(!(orderTotal > 0)) return;
+
     const lines=inv.lineItems||[];
-    let ng=0, gym=0;
-    if(lines.length){
-      lines.forEach(li=>{
-        const r=parseFloat(li.unitPrice||0)*(li.qty||1);
-        if(isGP(li)) gym+=r; else ng+=r;
-      });
-    } else { ng=parseFloat(inv.total||0); }
+    let lineGym=0, lineNonGym=0;
+    lines.forEach(li=>{
+      const r=parseFloat(li.unitPrice||0)*(parseFloat(li.qty)||0);
+      if(isGP(li)) lineGym+=r; else lineNonGym+=r;
+    });
+    const lineSum = lineGym + lineNonGym;
+    let ng, gym;
+    if(lineSum > 0){
+      const gymRatio = lineGym / lineSum;
+      gym = orderTotal * gymRatio;
+      ng  = orderTotal - gym;
+    } else {
+      ng = orderTotal; gym = 0;
+    }
+
     const date=(inv.createdDate||"").substring(0,10);
     if(!date||date<"2020") return;
     if(!daily[date]) daily[date]={};
@@ -352,7 +380,7 @@ function buildGymData(allOrders){
     });
   });
 
-  return { timestamp:Date.now(), daily, tops, branches, totalOrders:allOrders.length };
+  return { timestamp:Date.now(), daily, tops, branches, totalOrders:orders.length };
 }
 
 // ── Calculations ──────────────────────────────────────────────────────────────
@@ -589,6 +617,15 @@ async function pumpThrottle(){
   throttlePumping = false;
 }
 
+// 7 months back — covers HISTORY_MONTHS (6) plus a 1-month buffer so MoM
+// growth still has a prior-month comparison at the earliest displayed month.
+function gymCreatedSince(){
+  const d = new Date();
+  d.setMonth(d.getMonth() - 7);
+  d.setHours(0,0,0,0);
+  return d.toISOString();
+}
+
 // ── Fetch one page (throttled, with robust retries) ──────────────────────────
 // Retries transient failures (429/5xx/network) up to 6 times with exponential
 // backoff so a rate-limit blip doesn't silently truncate a gym's pagination.
@@ -603,7 +640,8 @@ async function fetchPage(branchId, page){
         endpoint:"SalesOrders",
         rows:250,
         page,
-        where:`branchId=${branchId}`
+        where:`branchId=${branchId}`,
+        createdSince: gymCreatedSince()
       });
       const r = await fetch(`/api/cin7?${qs}`);
       lastStatus = r.status;
@@ -660,15 +698,41 @@ async function fetchAllProducts(){
 // we skip the break on `rows.length < 250` only when failed=false so a
 // rate-limit blip that exhausted retries doesn't masquerade as end-of-data.
 async function fetchGym(id){
+  // Cin7's default sort is modifiedDate DESC, so an order edited mid-pagination
+  // shifts to an earlier page and would otherwise be counted twice. Dedupe by
+  // order id as we accumulate.
   const orders = [];
+  const seen = new Set();
   for(let page = 1; page <= 80; page++){
     const { rows, failed } = await fetchPage(id, page);
     if(failed) break;
     if(!rows.length) break;
-    orders.push(...rows);
+    for(const o of rows){
+      const oid = o && o.id;
+      if(oid != null){
+        if(seen.has(oid)) continue;
+        seen.add(oid);
+      }
+      orders.push(o);
+    }
     if(rows.length < 250) break;
   }
   return orders;
+}
+
+// ── Try the server-aggregated cache first (Vercel KV via /api/data) ─────────
+// The cron in api/refresh.js builds the same `gymData` shape and writes it to
+// KV every 30 min. If KV is configured + populated, this returns instantly.
+// If not (503 / 404), we fall through to the direct-fetch slow path so the
+// dashboard still works before/while the cron is set up.
+async function loadFromServerCache(){
+  try{
+    const r = await fetch("/api/data", { cache: "no-store" });
+    if(!r.ok) return null;
+    const data = await r.json();
+    if(!data || !data.daily || !data.branches) return null;
+    return data;
+  }catch(e){ return null; }
 }
 
 // ── Full data load (progressive: shows app after first 2 gyms) ───────────────
@@ -690,6 +754,24 @@ async function loadData(opts={}){
   if(!background) document.getElementById("progFill").style.width="0%";
 
   try{
+    // Fast path — server-aggregated KV cache.
+    const fast = await loadFromServerCache();
+    if(fast){
+      gymData = fast;
+      saveCache(gymData);
+      setupSelectors();
+      await ensureChartJs();
+      render();
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("app").style.display = "block";
+      document.getElementById("loadBanner").style.display = "none";
+      const ageMin = Math.round((Date.now() - (gymData.timestamp || Date.now())) / 60000);
+      document.getElementById("lastRefresh").textContent =
+        ageMin < 1 ? "Updated just now" : `Updated ${ageMin}m ago`;
+      isLoadingData = false;
+      return;
+    }
+
     const entries = Object.entries(GYM_BRANCH_MAP);
     const all = [];
     let completed = 0;
