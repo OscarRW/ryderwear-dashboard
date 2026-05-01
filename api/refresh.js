@@ -57,6 +57,7 @@ const PRODUCT_CATEGORY_OVERRIDES = {
   "Faction Labs Disorder Energy RTD - Blue Pearl": "drinks",
   "Faction Labs Disorder Energy RTD - Green Haze": "drinks",
   "ON Amino Energy Sparkling RTD - Mango Pinelime": "drinks",
+  "Ghost Whey Protein - Choc Chip Cookie": "supplements",
 };
 
 const topCat = li => {
