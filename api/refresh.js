@@ -271,7 +271,10 @@ function prodKey(li){
   return (li.product && li.product.id) || li.title || "Unknown";
 }
 function prodName(li){
-  return li.title || "Unknown";
+  const t = li.title || "Unknown";
+  const vt = ((li.variant && li.variant.title) || "").trim();
+  if (!vt || vt === "Default Title" || t.toLowerCase().includes(vt.toLowerCase())) return t;
+  return `${t} (${vt})`;
 }
 function lineUnit(li){
   return parseFloat(((li.originalUnitPriceSet || {}).shopMoney || {}).amount || 0);
