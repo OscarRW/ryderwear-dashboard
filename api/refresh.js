@@ -376,11 +376,29 @@ function buildGymData(orders){
           .filter(r => r.t > 0)
           .sort((a, b) => b.t - a.t)
           .slice(0, 15);
-        const nameCounts = {};
-        for (const r of ranked) nameCounts[r.n] = (nameCounts[r.n] || 0) + 1;
+        const groups = {};
+        for (const r of ranked){
+          if (!groups[r.n]) groups[r.n] = [];
+          groups[r.n].push(r);
+        }
+        const suffixFor = {};
+        for (const [name, rows] of Object.entries(groups)){
+          if (rows.length < 2) continue;
+          const skus = rows.map(r => r.s || "");
+          let prefix = skus[0];
+          for (let i = 1; i < skus.length; i++){
+            let j = 0;
+            while (j < prefix.length && j < skus[i].length && prefix[j] === skus[i][j]) j++;
+            prefix = prefix.slice(0, j);
+          }
+          for (const r of rows){
+            const tail = (r.s || "").slice(prefix.length).replace(/^[-_\s]+/, "");
+            suffixFor[`${r.n}|${r.s}`] = tail || r.s || "";
+          }
+        }
         out[cat] = ranked.map(r => {
-          const display = (nameCounts[r.n] > 1 && r.s) ? `${r.n} [${r.s}]` : r.n;
-          return { n: display, t: r.t, q: r.q };
+          const tail = suffixFor[`${r.n}|${r.s}`];
+          return { n: tail ? `${r.n} (${tail})` : r.n, t: r.t, q: r.q };
         });
       }
       tops[key] = out;
