@@ -29,18 +29,25 @@ const KV_TOKEN    = "shopifyToken";
 const KV_PENDING  = "shopifyBulkPending";
 const STALE_RUN_MS = 2 * 60 * 60 * 1000; // bulk shouldn't run >2h; if it does, reset
 const PERIODS = [7, 14, 30, 60, 90];
-const GARMENT_SIZES = /^(XS|S|M|L|XL|2XL|XXL|3XL|4XL|XXXL|ONE SIZE|OSFM|Regular\s*[\/]?\s*[SMLX]+|\d{1,2})$/i;
 const SHOPIFY_API_VERSION = "2024-10";
 
 // Apparel productTypes count toward the dashboard's "ex-gym" total.
-// Everything else — gym accessories, supplements, drinks, food (incl.
-// protein bars), memberships, gift cards, shipping insurance, lanyards,
-// FOB, empty productType — is treated as "gym/excluded" revenue and
-// netted out. Match is case-insensitive on the trimmed productType.
+// Everything else — supplements, drinks, food, memberships, gift cards,
+// shipping insurance, lanyards, FOB, empty productType — is treated as
+// "gym/excluded" revenue and netted out. Case-insensitive match on the
+// trimmed productType.
 const APPAREL_PRODUCT_TYPES = new Set(["clothing", "shoes", "socks", "accessories"]);
 const isGP = li => {
   const pt = ((li.productType || "")).trim().toLowerCase();
   return !APPAREL_PRODUCT_TYPES.has(pt);
+};
+
+// Top-products category buckets shown on the dashboard. Anything whose
+// productType doesn't match one of these is excluded from the top lists.
+const TOP_CATEGORIES = ["clothing", "accessories", "supplements", "drinks", "food"];
+const topCat = li => {
+  const pt = ((li.productType || "")).trim().toLowerCase();
+  return TOP_CATEGORIES.includes(pt) ? pt : null;
 };
 
 // Map: Shopify location name (matched by substring, case-insensitive) →
@@ -243,11 +250,6 @@ function parseJsonl(text){
 }
 
 // ── Aggregation ───────────────────────────────────────────────────────────
-function isClothing(li){
-  const t = ((li.variant && li.variant.title) || "").trim();
-  if (!t || t === "Default Title") return false;
-  return t.split(" / ").some(p => GARMENT_SIZES.test(p.trim()));
-}
 function prodKey(li){
   return (li.product && li.product.id) || li.title || "Unknown";
 }
@@ -278,11 +280,13 @@ function buildGymData(orders){
   PERIODS.forEach(d => { periodCuts[d] = now - d * 864e5; });
   const topBuckets = {};
 
-  const addTop = (days, loc, li, isGym, isCl) => {
+  const addTop = (days, loc, li) => {
+    const cat = topCat(li);
+    if (!cat) return;
     const key = `${days}|${loc}`;
-    if (!topBuckets[key]) topBuckets[key] = { ex: {}, gm: {} };
-    const bucket = isGym ? topBuckets[key].gm : (!isCl ? topBuckets[key].ex : null);
-    if (!bucket) return;
+    if (!topBuckets[key]) topBuckets[key] = {};
+    if (!topBuckets[key][cat]) topBuckets[key][cat] = {};
+    const bucket = topBuckets[key][cat];
     const pKey = prodKey(li);
     if (!bucket[pKey]) bucket[pKey] = { n: prodName(li), t: 0, q: 0 };
     bucket[pKey].t += lineUnit(li) * lineQty(li);
@@ -329,10 +333,8 @@ function buildGymData(orders){
       for (const days of PERIODS){
         if (createdTs < periodCuts[days]) continue;
         for (const li of lines){
-          const isGym = isGP(li);
-          const isCl  = isClothing(li);
-          addTop(days, "all",   li, isGym, isCl);
-          addTop(days, branch,  li, isGym, isCl);
+          addTop(days, "all",  li);
+          addTop(days, branch, li);
         }
       }
     }
@@ -344,11 +346,15 @@ function buildGymData(orders){
   for (const days of PERIODS){
     for (const loc of ["all", ...branches]){
       const key = `${days}|${loc}`;
-      const b = topBuckets[key] || { ex: {}, gm: {} };
-      tops[key] = {
-        ex: Object.values(b.ex).filter(r => r.t > 0).sort((a, b) => b.t - a.t).slice(0, 15),
-        gm: Object.values(b.gm).filter(r => r.t > 0).sort((a, b) => b.t - a.t).slice(0, 15)
-      };
+      const b = topBuckets[key] || {};
+      const out = {};
+      for (const cat of TOP_CATEGORIES){
+        out[cat] = Object.values(b[cat] || {})
+          .filter(r => r.t > 0)
+          .sort((a, b) => b.t - a.t)
+          .slice(0, 15);
+      }
+      tops[key] = out;
     }
   }
   return { timestamp: Date.now(), daily, tops, branches, totalOrders: processed };

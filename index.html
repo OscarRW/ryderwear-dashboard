@@ -45,9 +45,11 @@ button:hover{background:#2a2a3e}
 .error-box{background:#1e1e2e;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:480px;margin:80px auto;text-align:center}
 .load-banner{background:#181828;border:1px solid #6366f140;border-radius:8px;padding:8px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
 #app{display:none}
-.top-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.top-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
+.top-cat-head{font-size:12px;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e}
 .sms{font-size:11px!important;padding:4px 8px!important;border-radius:6px!important;background:#252538!important;border-color:#333!important}
 .dod-day-label{font-size:11px;color:#555;text-align:center;margin-top:4px}
+@media(max-width:1100px){.top-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-row{grid-template-columns:1fr}.top-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -149,14 +151,11 @@ button:hover{background:#2a2a3e}
       </select>
     </div>
     <div class="top-grid">
-      <div>
-        <div style="font-size:12px;font-weight:600;color:#6366f1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">Top products — excluding gym products</div>
-        <div id="topExGym"></div>
-      </div>
-      <div>
-        <div style="font-size:12px;font-weight:600;color:#10b981;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e">Top products — gym products only</div>
-        <div id="topGymOnly"></div>
-      </div>
+      <div><div class="top-cat-head" style="color:#6366f1">Clothing</div><div id="topClothing"></div></div>
+      <div><div class="top-cat-head" style="color:#10b981">Accessories</div><div id="topAccessories"></div></div>
+      <div><div class="top-cat-head" style="color:#f59e0b">Supplements</div><div id="topSupplements"></div></div>
+      <div><div class="top-cat-head" style="color:#ec4899">Drinks</div><div id="topDrinks"></div></div>
+      <div><div class="top-cat-head" style="color:#3b82f6">Food</div><div id="topFood"></div></div>
     </div>
   </div>
 </div>
@@ -575,13 +574,16 @@ function render(){
   document.getElementById("kMoM").innerHTML=momLast!=null?pill(momLast):"—";
   document.getElementById("kWoW").innerHTML=wowLast!=null?pill(wowLast):"—";
 
-  // Top products
+  // Top products — per category
   const topLoc=document.getElementById("topLocSel").value;
   const topKey=`${days}|${topLoc}`;
-  const topData=tops[topKey]||{ex:[],gm:[]};
+  const topData=tops[topKey]||{};
   document.getElementById("topPeriodLabel").textContent=`· ${document.getElementById("perSel").selectedOptions[0]?.text||""}`;
-  renderTopList("topExGym",topData.ex,"#6366f1");
-  renderTopList("topGymOnly",topData.gm,"#10b981");
+  renderTopList("topClothing",    topData.clothing    ||[],"#6366f1");
+  renderTopList("topAccessories", topData.accessories ||[],"#10b981");
+  renderTopList("topSupplements", topData.supplements ||[],"#f59e0b");
+  renderTopList("topDrinks",      topData.drinks      ||[],"#ec4899");
+  renderTopList("topFood",        topData.food        ||[],"#3b82f6");
 
   // Subline
   const dates=Object.keys(daily).sort();
