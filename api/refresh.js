@@ -32,11 +32,16 @@ const PERIODS = [7, 14, 30, 60, 90];
 const GARMENT_SIZES = /^(XS|S|M|L|XL|2XL|XXL|3XL|4XL|XXXL|ONE SIZE|OSFM|Regular\s*[\/]?\s*[SMLX]+|\d{1,2})$/i;
 const SHOPIFY_API_VERSION = "2024-10";
 
-// productType match for "this is a gym (equipment) product, not apparel".
-// If your store uses a different naming convention (a tag, a vendor, or
-// "Gym Equipment" instead of "Gym"), adjust this one regex.
-const GYM_PRODUCT_TYPE_RE = /gym/i;
-const isGP = li => GYM_PRODUCT_TYPE_RE.test(li.productType || "");
+// Apparel productTypes count toward the dashboard's "ex-gym" total.
+// Everything else — gym accessories, supplements, drinks, food (incl.
+// protein bars), memberships, gift cards, shipping insurance, lanyards,
+// FOB, empty productType — is treated as "gym/excluded" revenue and
+// netted out. Match is case-insensitive on the trimmed productType.
+const APPAREL_PRODUCT_TYPES = new Set(["clothing", "shoes", "socks"]);
+const isGP = li => {
+  const pt = ((li.productType || "")).trim().toLowerCase();
+  return !APPAREL_PRODUCT_TYPES.has(pt);
+};
 
 // Map: Shopify location name (matched by substring, case-insensitive) →
 // the dashboard label that should appear. Online orders or in-store orders
