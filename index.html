@@ -146,9 +146,15 @@ button:hover{background:#2a2a3e}
         <div class="card-title">Top products</div>
         <span id="topPeriodLabel" style="font-size:11px;color:#555"></span>
       </div>
-      <select id="topLocSel" style="font-size:12px;padding:5px 10px">
-        <option value="all">All locations</option>
-      </select>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="topSortSel" style="font-size:12px;padding:5px 10px">
+          <option value="t" selected>Revenue</option>
+          <option value="q">Quantity sold</option>
+        </select>
+        <select id="topLocSel" style="font-size:12px;padding:5px 10px">
+          <option value="all">All locations</option>
+        </select>
+      </div>
     </div>
     <div class="top-grid">
       <div><div class="top-cat-head" style="color:#6366f1">Clothing</div><div id="topClothing"></div></div>
@@ -473,14 +479,16 @@ function makeBtns(id,branches,active,cb){
   el.querySelectorAll(".bb").forEach((b,i)=>b.classList.toggle("active", i===active));
 }
 
-function renderTopList(elId,items,color){
-  const max=items[0]?.t||1;
-  document.getElementById(elId).innerHTML=items.length?items.map((r,i)=>`
+function renderTopList(elId,items,color,sortBy){
+  const key = sortBy==="q" ? "q" : "t";
+  const sorted = [...items].sort((a,b)=>b[key]-a[key]);
+  const max = sorted[0]?.[key] || 1;
+  document.getElementById(elId).innerHTML=sorted.length?sorted.map((r,i)=>`
     <div class="top-row">
       <div class="top-rank">${i+1}</div>
       <div style="flex:1;min-width:0">
         <div class="top-name">${r.n}</div>
-        <div class="bar-wrap"><div class="bar-fill" style="background:${color};width:${Math.round((r.t/max)*100)}%"></div></div>
+        <div class="bar-wrap"><div class="bar-fill" style="background:${color};width:${Math.round((r[key]/max)*100)}%"></div></div>
       </div>
       <div class="top-val">${$m(r.t)}</div>
       <div class="top-qty">${Math.round(r.q)} sold</div>
@@ -576,14 +584,15 @@ function render(){
 
   // Top products — per category
   const topLoc=document.getElementById("topLocSel").value;
+  const topSort=document.getElementById("topSortSel").value;
   const topKey=`${days}|${topLoc}`;
   const topData=tops[topKey]||{};
   document.getElementById("topPeriodLabel").textContent=`· ${document.getElementById("perSel").selectedOptions[0]?.text||""}`;
-  renderTopList("topClothing",    topData.clothing    ||[],"#6366f1");
-  renderTopList("topAccessories", topData.accessories ||[],"#10b981");
-  renderTopList("topSupplements", topData.supplements ||[],"#f59e0b");
-  renderTopList("topDrinks",      topData.drinks      ||[],"#ec4899");
-  renderTopList("topFood",        topData.food        ||[],"#3b82f6");
+  renderTopList("topClothing",    topData.clothing    ||[],"#6366f1",topSort);
+  renderTopList("topAccessories", topData.accessories ||[],"#10b981",topSort);
+  renderTopList("topSupplements", topData.supplements ||[],"#f59e0b",topSort);
+  renderTopList("topDrinks",      topData.drinks      ||[],"#ec4899",topSort);
+  renderTopList("topFood",        topData.food        ||[],"#3b82f6",topSort);
 
   // Subline
   const dates=Object.keys(daily).sort();
@@ -889,6 +898,7 @@ function init(){
 document.getElementById("perSel").addEventListener("change",render);
 document.getElementById("momPeriodSel").addEventListener("change",render);
 document.getElementById("topLocSel").addEventListener("change",render);
+document.getElementById("topSortSel").addEventListener("change",render);
 document.getElementById("dodWeekSel").addEventListener("change",render);
 init();
 </script>
