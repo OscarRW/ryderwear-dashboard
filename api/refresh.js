@@ -12,20 +12,19 @@
 //   Phase C — start: no pending or active op, kick a new bulk job off and
 //             record its id. The next cron tick will pick it up.
 //
-// Auth: client_id + client_secret → 24h Admin API token via the
-// client_credentials grant. Token cached in KV with a 5-min safety buffer.
+// Auth: Shopify Custom App Admin API access token (long-lived, no OAuth).
+// Get it from: Shopify admin → Settings → Apps and sales channels →
+// Develop apps → <your custom app> → API credentials → Admin API access token.
 //
 // Env vars required:
 //   SHOPIFY_STORE          e.g. "ryderwear-au" or "ryderwear-au.myshopify.com"
-//   SHOPIFY_CLIENT_ID
-//   SHOPIFY_CLIENT_SECRET
+//   SHOPIFY_ACCESS_TOKEN   Admin API access token (starts with "shpat_")
 //   KV_REST_API_URL        (auto-set when Vercel KV is provisioned)
 //   KV_REST_API_TOKEN      (auto-set when Vercel KV is provisioned)
 //   CRON_SECRET            any random string — Vercel sends it on cron hits
 
 const HISTORY_MONTHS = 6;
 const KV_GYM_DATA = "gymData";
-const KV_TOKEN    = "shopifyToken";
 const KV_PENDING  = "shopifyBulkPending";
 const STALE_RUN_MS = 2 * 60 * 60 * 1000; // bulk shouldn't run >2h; if it does, reset
 const PERIODS = [7, 14, 30, 60, 90];
@@ -101,34 +100,17 @@ async function kvDel(key){
   }).catch(()=>{});
 }
 
-// ── Shopify access token (24h via client_credentials, cached in KV) ───────
-async function getAccessToken(){
-  const cached = await kvGet(KV_TOKEN);
-  if (cached && cached.token && cached.expiresAt > Date.now() + 60_000){
-    return cached.token;
-  }
-  const shop = shopifyShop();
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: process.env.SHOPIFY_CLIENT_ID || "",
-    client_secret: process.env.SHOPIFY_CLIENT_SECRET || ""
-  }).toString();
-  const r = await fetch(`https://${shop}/admin/oauth/access_token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body
-  });
-  if (!r.ok) throw new Error(`Token fetch ${r.status}: ${await r.text().catch(()=>"")}`);
-  const { access_token, expires_in } = await r.json();
-  const ttl = Math.max(60, (expires_in || 86400) - 300);
-  await kvSet(KV_TOKEN, { token: access_token, expiresAt: Date.now() + ttl * 1000 });
-  return access_token;
+// ── Shopify access token (Custom App Admin API, set as env var) ──────────
+function getAccessToken(){
+  const token = process.env.SHOPIFY_ACCESS_TOKEN;
+  if (!token) throw new Error("SHOPIFY_ACCESS_TOKEN not configured");
+  return token;
 }
 
 // ── GraphQL helper ────────────────────────────────────────────────────────
 async function gql(query, variables){
   const shop = shopifyShop();
-  const token = await getAccessToken();
+  const token = getAccessToken();
   const r = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
     method: "POST",
     headers: {
