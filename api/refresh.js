@@ -37,7 +37,7 @@ const SHOPIFY_API_VERSION = "2024-10";
 // protein bars), memberships, gift cards, shipping insurance, lanyards,
 // FOB, empty productType — is treated as "gym/excluded" revenue and
 // netted out. Match is case-insensitive on the trimmed productType.
-const APPAREL_PRODUCT_TYPES = new Set(["clothing", "shoes", "socks"]);
+const APPAREL_PRODUCT_TYPES = new Set(["clothing", "shoes", "socks", "accessories"]);
 const isGP = li => {
   const pt = ((li.productType || "")).trim().toLowerCase();
   return !APPAREL_PRODUCT_TYPES.has(pt);
