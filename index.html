@@ -487,7 +487,7 @@ function renderTopList(elId,items,color,sortBy){
     <div class="top-row">
       <div class="top-rank">${i+1}</div>
       <div style="flex:1;min-width:0">
-        <div class="top-name">${r.n}</div>
+        <div class="top-name" title="${r.n.replace(/"/g,'&quot;')}">${r.n}</div>
         <div class="bar-wrap"><div class="bar-fill" style="background:${color};width:${Math.round((r[key]/max)*100)}%"></div></div>
       </div>
       <div class="top-val">${$m(r.t)}</div>
