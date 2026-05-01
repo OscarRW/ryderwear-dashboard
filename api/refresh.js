@@ -45,7 +45,23 @@ const isGP = li => {
 // Top-products category buckets shown on the dashboard. Anything whose
 // productType doesn't match one of these is excluded from the top lists.
 const TOP_CATEGORIES = ["clothing", "accessories", "supplements", "drinks", "food"];
+
+// Per-product category overrides keyed by exact line-item title. Used to
+// reclassify SKUs that are mis-tagged upstream in Shopify (e.g., RTD
+// shakes coming through as Supplements rather than Drinks). Wins over
+// productType. Add new entries as they're discovered.
+const PRODUCT_CATEGORY_OVERRIDES = {
+  "ON Pure Pro - Chocolate": "drinks",
+  "ON Pure Pro - Banana": "drinks",
+  "ON Pure Pro - Vanilla": "drinks",
+  "Faction Labs Disorder Energy RTD - Blue Pearl": "drinks",
+  "Faction Labs Disorder Energy RTD - Green Haze": "drinks",
+  "ON Amino Energy Sparkling RTD - Mango Pinelime": "drinks",
+};
+
 const topCat = li => {
+  const override = PRODUCT_CATEGORY_OVERRIDES[li.title || ""];
+  if (override) return override;
   const pt = ((li.productType || "")).trim().toLowerCase();
   return TOP_CATEGORIES.includes(pt) ? pt : null;
 };
