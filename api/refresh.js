@@ -276,6 +276,9 @@ function prodName(li){
   if (!vt || vt === "Default Title" || t.toLowerCase().includes(vt.toLowerCase())) return t;
   return `${t} (${vt})`;
 }
+function prodSku(li){
+  return ((li.variant && li.variant.sku) || "").trim();
+}
 function lineUnit(li){
   return parseFloat(((li.originalUnitPriceSet || {}).shopMoney || {}).amount || 0);
 }
@@ -308,7 +311,7 @@ function buildGymData(orders){
     if (!topBuckets[key][cat]) topBuckets[key][cat] = {};
     const bucket = topBuckets[key][cat];
     const pKey = prodKey(li);
-    if (!bucket[pKey]) bucket[pKey] = { n: prodName(li), t: 0, q: 0 };
+    if (!bucket[pKey]) bucket[pKey] = { n: prodName(li), s: prodSku(li), t: 0, q: 0 };
     bucket[pKey].t += lineUnit(li) * lineQty(li);
     bucket[pKey].q += lineQty(li);
   };
@@ -369,10 +372,16 @@ function buildGymData(orders){
       const b = topBuckets[key] || {};
       const out = {};
       for (const cat of TOP_CATEGORIES){
-        out[cat] = Object.values(b[cat] || {})
+        const ranked = Object.values(b[cat] || {})
           .filter(r => r.t > 0)
           .sort((a, b) => b.t - a.t)
           .slice(0, 15);
+        const nameCounts = {};
+        for (const r of ranked) nameCounts[r.n] = (nameCounts[r.n] || 0) + 1;
+        out[cat] = ranked.map(r => {
+          const display = (nameCounts[r.n] > 1 && r.s) ? `${r.n} [${r.s}]` : r.n;
+          return { n: display, t: r.t, q: r.q };
+        });
       }
       tops[key] = out;
     }
