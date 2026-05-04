@@ -3,6 +3,7 @@
     { "source": "/api/cin7", "destination": "/api/cin7" }
   ],
   "crons": [
-    { "path": "/api/refresh", "schedule": "0 14 * * *" }
+    { "path": "/api/refresh", "schedule": "30 14 * * *" },
+    { "path": "/api/refresh", "schedule": "30 5 * * *" }
   ]
 }
