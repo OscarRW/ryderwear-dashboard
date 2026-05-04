@@ -628,11 +628,11 @@ async function pumpThrottle(){
   throttlePumping = false;
 }
 
-// 7 months back — covers HISTORY_MONTHS (6) plus a 1-month buffer so MoM
+// 13 months back — covers HISTORY_MONTHS (12) plus a 1-month buffer so MoM
 // growth still has a prior-month comparison at the earliest displayed month.
 function gymCreatedSince(){
   const d = new Date();
-  d.setMonth(d.getMonth() - 7);
+  d.setMonth(d.getMonth() - 13);
   d.setHours(0,0,0,0);
   return d.toISOString();
 }

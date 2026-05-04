@@ -23,7 +23,7 @@
 //   KV_REST_API_TOKEN      (auto-set when Vercel KV is provisioned)
 //   CRON_SECRET            any random string — Vercel sends it on cron hits
 
-const HISTORY_MONTHS = 6;
+const HISTORY_MONTHS = 12;
 const KV_GYM_DATA = "gymData";
 const KV_TOKEN    = "shopifyToken";
 const KV_PENDING  = "shopifyBulkPending";
