@@ -35,11 +35,9 @@ async function kvSet(key, value){
   });
 }
 
-async function getAccessToken(){
-  const cached = await kvGet(KV_TOKEN);
-  if (cached && cached.token && cached.expiresAt > Date.now() + 60_000){
-    return cached.token;
-  }
+async function getFreshAccessToken(){
+  // Always do a fresh exchange so we get the `scope` field back —
+  // the cache only stores the token string, not the granted scopes.
   const shop = shopifyShop();
   const body = new URLSearchParams({
     grant_type: "client_credentials",
@@ -83,39 +81,37 @@ module.exports = async function handler(req, res){
   }
 
   try {
-    const { token, scope } = await getAccessToken();
+    const { token, scope } = await getFreshAccessToken();
+
+    const safe = async (label, fn) => {
+      try { return await fn(); } catch (e) { return { error: `${label}: ${e.message}` }; }
+    };
 
     // Probe 1: oldest order overall (no date filter, ascending)
-    const oldestQuery = `{
-      orders(first: 5, sortKey: CREATED_AT, reverse: false) {
-        edges { node { id createdAt name physicalLocation { name } } }
-      }
-    }`;
-    const oldest = await gql(token, oldestQuery);
+    const oldest = await safe("oldest", () => gql(token,
+      `{ orders(first: 5, sortKey: CREATED_AT, reverse: false) {
+          edges { node { id createdAt name physicalLocation { name } } }
+        } }`
+    ));
 
     // Probe 2: orders >90 days old (well beyond the 60d default cap)
     const cutoff = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
-    const oldOrdersQuery = `{
-      orders(first: 5, query: "created_at:<${cutoff}", sortKey: CREATED_AT, reverse: true) {
-        edges { node { id createdAt name physicalLocation { name } } }
-      }
-    }`;
-    const oldOrders = await gql(token, oldOrdersQuery);
+    const oldOrders = await safe("old", () => gql(token,
+      `{ orders(first: 5, query: "created_at:<${cutoff}", sortKey: CREATED_AT, reverse: true) {
+          edges { node { id createdAt name physicalLocation { name } } }
+        } }`
+    ));
 
-    // Probe 3: count via shop info — how many orders does the store have total?
-    let shopOrdersCount = null;
-    try {
-      const countData = await gql(token, `{ ordersCount(query: "") { count } }`);
-      shopOrdersCount = countData.ordersCount && countData.ordersCount.count;
-    } catch { /* ordersCount may not be available on all API versions */ }
+    // Probe 3: total order count for the store
+    const ordersCount = await safe("count", () => gql(token, `{ ordersCount { count } }`));
 
     res.status(200).json({
       ok: true,
       tokenScope: scope || "(scope not returned by token endpoint)",
       cutoffFor90DayProbe: cutoff,
-      probe1_oldestOrderInStore: oldest.orders.edges.map(e => e.node),
-      probe2_ordersOlderThan90Days: oldOrders.orders.edges.map(e => e.node),
-      probe3_totalOrdersCount: shopOrdersCount,
+      probe1_oldestOrderInStore: oldest.orders ? oldest.orders.edges.map(e => e.node) : oldest,
+      probe2_ordersOlderThan90Days: oldOrders.orders ? oldOrders.orders.edges.map(e => e.node) : oldOrders,
+      probe3_totalOrdersCount: ordersCount.ordersCount ? ordersCount.ordersCount.count : ordersCount,
       interpretation: {
         ifOldestIsRecent: "Shopify only has recent orders — gym launched recently, no API limit issue.",
         ifOldestIsOldButProbe2Empty: "App lacks read_all_orders scope — older orders exist but API is hiding them.",
