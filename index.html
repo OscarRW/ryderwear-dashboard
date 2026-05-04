@@ -57,7 +57,7 @@ button:hover{background:#2a2a3e}
 
 <div id="loading" class="spinner">
   <div class="spin"></div>
-  <div id="loadMsg" style="color:#aaa;font-size:14px">Connecting to Cin7…</div>
+  <div id="loadMsg" style="color:#aaa;font-size:14px">Connecting to Shopify…</div>
   <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
   <div id="loadSub" style="color:#555;font-size:12px">First load ~30s · saves locally after</div>
 </div>
@@ -70,7 +70,7 @@ button:hover{background:#2a2a3e}
 
 <div id="app">
   <h1>Ryderwear Gyms — Sales analytics</h1>
-  <div class="sub" id="subline">Live from Cin7</div>
+  <div class="sub" id="subline">Live from Shopify</div>
 
   <!-- Progressive loading banner — shows while remaining gyms fetch in background -->
   <div id="loadBanner" class="load-banner" style="display:none">
@@ -85,7 +85,9 @@ button:hover{background:#2a2a3e}
       <option value="14">Last 14 days</option>
       <option value="30">Last 30 days</option>
       <option value="60">Last 60 days</option>
-      <option value="90" selected>Last 90 days</option>
+      <option value="90">Last 90 days</option>
+      <option value="180">Last 180 days</option>
+      <option value="365" selected>Last 12 months</option>
     </select>
     <button onclick="refreshData()">↻ Refresh data</button>
     <button onclick="hardRefresh()">Hard refresh</button>
@@ -310,7 +312,7 @@ function buildGymData(allOrders){
   }
 
   const daily={};
-  const PERIODS=[7,14,30,60,90];
+  const PERIODS=[7,14,30,60,90,180,365];
   const now = Date.now();
   const periodCuts = {};
   PERIODS.forEach(days=>{ periodCuts[days] = now - (days*864e5); });
@@ -599,7 +601,7 @@ function render(){
   const from=dates[0]?mLabel(dates[0].substring(0,7)):"";
   const to  =dates[dates.length-1]?mLabel(dates[dates.length-1].substring(0,7)):"";
   document.getElementById("subline").textContent=
-    `${(gymData.totalOrders||0).toLocaleString()} gym orders · ${gymData.branches.length} locations · ${from} – ${to} · live from Cin7`;
+    `${(gymData.totalOrders||0).toLocaleString()} gym orders · ${gymData.branches.length} locations · ${from} – ${to} · live from Shopify`;
 }
 
 // ── Global throttle (single-file dispatcher) ─────────────────────────────────

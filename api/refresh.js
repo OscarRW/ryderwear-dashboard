@@ -28,7 +28,7 @@ const KV_GYM_DATA = "gymData";
 const KV_TOKEN    = "shopifyToken";
 const KV_PENDING  = "shopifyBulkPending";
 const STALE_RUN_MS = 2 * 60 * 60 * 1000; // bulk shouldn't run >2h; if it does, reset
-const PERIODS = [7, 14, 30, 60, 90];
+const PERIODS = [7, 14, 30, 60, 90, 180, 365];
 const SHOPIFY_API_VERSION = "2024-10";
 
 // Apparel productTypes count toward the dashboard's "ex-gym" total.
