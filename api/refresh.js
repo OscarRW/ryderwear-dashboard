@@ -429,6 +429,9 @@ module.exports = async function handler(req, res){
   }
 
   const startTs = Date.now();
+  // ?force=1 skips the "consume an already-completed bulk" path so a config
+  // change (e.g. HISTORY_MONTHS bump) actually triggers a fresh export.
+  const force = /[?&]force=1\b/.test(req.url || "");
 
   try {
     // Phase: have a pending bulk we started earlier?
@@ -463,7 +466,7 @@ module.exports = async function handler(req, res){
       await kvSet(KV_PENDING, { bulkId: current.id, startedAt: Date.now() });
       return res.json({ ok: true, action: "adopted", bulkId: current.id });
     }
-    if (current && current.status === "COMPLETED" && current.url){
+    if (!force && current && current.status === "COMPLETED" && current.url){
       // A previous run completed without us picking it up — use it if its
       // window matches what we'd request now (best-effort: just consume it).
       const result = await processCompleted(current, startTs);
