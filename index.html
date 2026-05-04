@@ -148,6 +148,15 @@ button:hover{background:#2a2a3e}
         <span id="topPeriodLabel" style="font-size:11px;color:#555"></span>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
+        <select id="topPeriodSel" style="font-size:12px;padding:5px 10px">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="60">Last 60 days</option>
+          <option value="90" selected>Last 90 days</option>
+          <option value="180">Last 180 days</option>
+          <option value="365">Last 12 months</option>
+        </select>
         <select id="topSortSel" style="font-size:12px;padding:5px 10px">
           <option value="t" selected>Revenue</option>
           <option value="q">Quantity sold</option>
@@ -585,12 +594,14 @@ function render(){
   document.getElementById("kMoMLabel").textContent=momCompleted?`MoM growth · ${momCompleted.label}`:"MoM growth";
   document.getElementById("kWoWLabel").textContent=wowCompleted?`WoW growth · ${wowCompleted.label}`:"WoW growth";
 
-  // Top products — per category
+  // Top products — per category, with its own period selector independent of `days`
   const topLoc=document.getElementById("topLocSel").value;
   const topSort=document.getElementById("topSortSel").value;
-  const topKey=`${days}|${topLoc}`;
+  const topPeriodSel=document.getElementById("topPeriodSel");
+  const topDays=parseInt(topPeriodSel.value,10);
+  const topKey=`${topDays}|${topLoc}`;
   const topData=tops[topKey]||{};
-  document.getElementById("topPeriodLabel").textContent=`· ${document.getElementById("perSel").selectedOptions[0]?.text||""}`;
+  document.getElementById("topPeriodLabel").textContent=`· ${topPeriodSel.selectedOptions[0]?.text||""}`;
   renderTopList("topClothing",    topData.clothing    ||[],"#6366f1",topSort);
   renderTopList("topAccessories", topData.accessories ||[],"#10b981",topSort);
   renderTopList("topSupplements", topData.supplements ||[],"#f59e0b",topSort);
@@ -902,6 +913,7 @@ document.getElementById("perSel").addEventListener("change",render);
 document.getElementById("momPeriodSel").addEventListener("change",render);
 document.getElementById("topLocSel").addEventListener("change",render);
 document.getElementById("topSortSel").addEventListener("change",render);
+document.getElementById("topPeriodSel").addEventListener("change",render);
 document.getElementById("dodWeekSel").addEventListener("change",render);
 init();
 </script>
