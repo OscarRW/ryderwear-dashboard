@@ -12,7 +12,7 @@ h1{font-size:20px;font-weight:600;margin-bottom:4px}
 .toolbar{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
 select,button{background:#1e1e2e;color:#fff;border:1px solid #2a2a3e;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer}
 button:hover{background:#2a2a3e}
-.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
 .kpi{background:#1e1e2e;border-radius:10px;padding:16px 20px}
 .kpi-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
 .kpi-value{font-size:22px;font-weight:600;display:flex;align-items:center;gap:8px}
@@ -95,10 +95,9 @@ button:hover{background:#2a2a3e}
   </div>
 
   <div class="kpi-grid">
-    <div class="kpi" style="border-left:4px solid #6366f1"><div class="kpi-label">Revenue (ex gym products)</div><div class="kpi-value" id="kRev">—</div></div>
     <div class="kpi" style="border-left:4px solid #10b981"><div class="kpi-label">Orders</div><div class="kpi-value" id="kOrd">—</div></div>
-    <div class="kpi" style="border-left:4px solid #f59e0b"><div class="kpi-label">MoM growth</div><div class="kpi-value" id="kMoM">—</div></div>
-    <div class="kpi" style="border-left:4px solid #ec4899"><div class="kpi-label">WoW growth</div><div class="kpi-value" id="kWoW">—</div></div>
+    <div class="kpi" style="border-left:4px solid #f59e0b"><div class="kpi-label" id="kMoMLabel">MoM growth</div><div class="kpi-value" id="kMoM">—</div></div>
+    <div class="kpi" style="border-left:4px solid #ec4899"><div class="kpi-label" id="kWoWLabel">WoW growth</div><div class="kpi-value" id="kWoW">—</div></div>
   </div>
 
   <!-- MoM & WoW -->
@@ -575,14 +574,16 @@ function render(){
       :'<span style="color:#444">No data for this week</span>';
   }
 
-  // KPIs
+  // KPIs — MoM/WoW compare the last *completed* period to the one before
+  // (skipping the in-progress current month/week so the growth isn't misleading).
   const kpi=calcKPI(daily,days);
-  const momLast=momData.length>=2?momData[momData.length-1].growth:null;
-  const wowLast=wowData.length>=2?wowData[wowData.length-1].growth:null;
-  document.getElementById("kRev").innerHTML=$m(kpi.rev);
+  const momCompleted=momData.length>=3?momData[momData.length-2]:null;
+  const wowCompleted=wowData.length>=3?wowData[wowData.length-2]:null;
   document.getElementById("kOrd").innerHTML=kpi.orders.toLocaleString("en-AU");
-  document.getElementById("kMoM").innerHTML=momLast!=null?pill(momLast):"—";
-  document.getElementById("kWoW").innerHTML=wowLast!=null?pill(wowLast):"—";
+  document.getElementById("kMoM").innerHTML=momCompleted?pill(momCompleted.growth):"—";
+  document.getElementById("kWoW").innerHTML=wowCompleted?pill(wowCompleted.growth):"—";
+  document.getElementById("kMoMLabel").textContent=momCompleted?`MoM growth · ${momCompleted.label}`:"MoM growth";
+  document.getElementById("kWoWLabel").textContent=wowCompleted?`WoW growth · ${wowCompleted.label}`:"WoW growth";
 
   // Top products — per category
   const topLoc=document.getElementById("topLocSel").value;
