@@ -315,7 +315,86 @@ function hardRefresh(){
   localStorage.removeItem(PRODUCT_CACHE_KEY);
   location.reload();
 }
-function refreshData(){ loadData({background:true, forceFresh:true}); }
+
+// Triggers a real Shopify refresh (bulk export → KV → reload) instead of
+// just refetching the cached KV. Polls /api/refresh?manual=1 until a fresh
+// KV write lands, then reloads /api/data with a cache-buster to bypass the
+// CDN's 5-min s-maxage. Bulk exports usually complete in 30-90s.
+async function refreshData(){
+  if(isLoadingData) return;
+  isLoadingData = true;
+  const banner = document.getElementById("loadBanner");
+  const msg = document.getElementById("bannerMsg");
+  const prog = document.getElementById("bannerProg");
+  banner.style.display = "flex";
+  msg.textContent = "Triggering fresh refresh from Shopify…";
+  prog.style.width = "5%";
+
+  const startedAt = Date.now();
+  const TIMEOUT_MS = 4 * 60 * 1000;
+  const POLL_INTERVAL_MS = 5000;
+  const initialTs = (gymData && gymData.timestamp) || 0;
+  let lastAction = "(no response yet)";
+
+  try{
+    while(Date.now() - startedAt < TIMEOUT_MS){
+      let data;
+      try{
+        const r = await fetch("/api/refresh?manual=1", { cache: "no-store" });
+        data = await r.json();
+        if(!r.ok && !data) throw new Error(`HTTP ${r.status}`);
+      }catch(e){
+        msg.textContent = `Refresh error: ${e.message}. Retrying…`;
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
+
+      const action = data.action || "unknown";
+      lastAction = action;
+      const elapsed = Math.round((Date.now() - startedAt) / 1000);
+
+      if(action === "started" || action === "adopted"){
+        msg.textContent = `Shopify is exporting orders… (${elapsed}s)`;
+      } else if(action === "still-running"){
+        msg.textContent = `Export running on Shopify… (${elapsed}s)`;
+      } else if(action === "completed-and-restarted" || action === "consumed-and-restarted"){
+        msg.textContent = "Loading fresh data…";
+      } else if(action === "stale-cleared" || action === "stale-canceled"){
+        msg.textContent = `Cleared stale state. Restarting…`;
+      }
+      prog.style.width = Math.min(90, 5 + Math.round((elapsed/120)*85)) + "%";
+
+      if(action === "completed-and-restarted" || action === "consumed-and-restarted"){
+        const dr = await fetch(`/api/data?t=${Date.now()}`, { cache: "no-store" });
+        if(dr.ok){
+          const fresh = await dr.json();
+          if(fresh && fresh.daily && (fresh.timestamp || 0) > initialTs){
+            gymData = fresh;
+            saveCache(gymData);
+            setupSelectors();
+            await ensureChartJs();
+            render();
+            prog.style.width = "100%";
+            msg.textContent = "Updated.";
+            document.getElementById("lastRefresh").textContent = "Updated just now";
+            setTimeout(()=>{ banner.style.display = "none"; }, 1500);
+            return;
+          }
+        }
+      }
+
+      if(action === "stale-cleared" || action === "stale-canceled"){
+        await sleep(1000);
+        continue;
+      }
+      await sleep(POLL_INTERVAL_MS);
+    }
+    msg.textContent = `Refresh timed out after ${Math.round((Date.now()-startedAt)/1000)}s (last: ${lastAction}).`;
+    setTimeout(()=>{ banner.style.display = "none"; }, 6000);
+  }finally{
+    isLoadingData = false;
+  }
+}
 
 function ensureChartJs(){
   if(window.Chart) return Promise.resolve();

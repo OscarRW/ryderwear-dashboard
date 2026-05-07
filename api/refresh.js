@@ -421,10 +421,38 @@ async function processCompleted(op, startTs){
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────
+// Kick off a new bulk export (no-op if one is already in flight). Used both
+// after a successful pickup (so the next tick has fresh data to consume) and
+// as the standalone "start" phase. Failure here is non-fatal — we record it
+// in the response so the caller can see what happened.
+async function queueNextBulk(){
+  // If a bulk is already running on the shop, don't try to start another —
+  // Shopify only allows one at a time. Adopt the existing one instead.
+  const current = await getCurrentBulkOp();
+  if (current && (current.status === "RUNNING" || current.status === "CREATED")){
+    await kvSet(KV_PENDING, { bulkId: current.id, startedAt: Date.now() });
+    return { queued: current.id, adopted: true };
+  }
+  const since = new Date();
+  since.setMonth(since.getMonth() - HISTORY_MONTHS - 1);
+  since.setHours(0, 0, 0, 0);
+  const started = await startBulkOrders(since.toISOString());
+  await kvSet(KV_PENDING, { bulkId: started.id, startedAt: Date.now() });
+  return { queued: started.id, adopted: false };
+}
+
 module.exports = async function handler(req, res){
+  // Two callers:
+  //   1. Vercel cron — sends `Authorization: Bearer ${CRON_SECRET}`.
+  //   2. Dashboard "Refresh data" button — hits `?manual=1` from the browser.
+  //      Manual is unauthenticated by design (internal dashboard, no user
+  //      auth layer), but Shopify's per-app one-bulk-at-a-time guarantee
+  //      means spam triggers can't stack — they just adopt the running op.
   const expected = process.env.CRON_SECRET;
   const auth = req.headers.authorization || "";
-  if (!expected || auth !== `Bearer ${expected}`){
+  const manual = /[?&]manual=1\b/.test(req.url || "");
+  const authed = expected && auth === `Bearer ${expected}`;
+  if (!authed && !manual){
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -453,7 +481,13 @@ module.exports = async function handler(req, res){
       if (op.status === "COMPLETED"){
         const result = await processCompleted(op, startTs);
         await kvDel(KV_PENDING);
-        return res.json({ ok: true, action: "completed", ...result });
+        // Immediately queue the next bulk so the next tick (cron or manual
+        // poll) can pick it up — without this, fresh data lands in KV every
+        // ~48h on a once-daily cron instead of every ~24h.
+        let next = null, restartError = null;
+        try { next = await queueNextBulk(); }
+        catch(e){ restartError = e.message; }
+        return res.json({ ok: true, action: "completed-and-restarted", ...result, queued: next, restartError });
       }
       // FAILED, CANCELED, EXPIRED — clear so next tick starts fresh.
       await kvDel(KV_PENDING);
@@ -470,16 +504,17 @@ module.exports = async function handler(req, res){
       // A previous run completed without us picking it up — use it if its
       // window matches what we'd request now (best-effort: just consume it).
       const result = await processCompleted(current, startTs);
-      return res.json({ ok: true, action: "consumed-existing", ...result });
+      // Same as the pending/completed branch — queue the next bulk so we
+      // don't stall on a stale "completed" indefinitely.
+      let next = null, restartError = null;
+      try { next = await queueNextBulk(); }
+      catch(e){ restartError = e.message; }
+      return res.json({ ok: true, action: "consumed-and-restarted", ...result, queued: next, restartError });
     }
 
     // Phase: no pending, nothing in flight — start a new bulk.
-    const since = new Date();
-    since.setMonth(since.getMonth() - HISTORY_MONTHS - 1);
-    since.setHours(0, 0, 0, 0);
-    const started = await startBulkOrders(since.toISOString());
-    await kvSet(KV_PENDING, { bulkId: started.id, startedAt: Date.now() });
-    return res.json({ ok: true, action: "started", bulkId: started.id });
+    const queued = await queueNextBulk();
+    return res.json({ ok: true, action: "started", ...queued });
   } catch(e){
     return res.status(500).json({ error: e.message });
   }
