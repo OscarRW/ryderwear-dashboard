@@ -9,63 +9,66 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(ellipse at top left,#1a1a2e 0%,#0f0f1a 60%) fixed;color:#fff;padding:24px;min-height:100vh;-webkit-font-smoothing:antialiased}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #ffffff0d}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;color:#0f0f1a;padding:24px;min-height:100vh;-webkit-font-smoothing:antialiased}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #00000010}
 .brand{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.brand-logo{height:56px;width:auto;display:block}
+.brand-logo{height:56px;width:auto;display:block;filter:brightness(0)}
 .brand-mark{display:flex;align-items:center;gap:14px}
-.brand-mark svg{width:42px;height:54px;flex-shrink:0;color:#fff}
+.brand-mark svg{width:42px;height:54px;flex-shrink:0;color:#0f0f1a}
 .brand-text-stack{line-height:1.05}
-.brand-name{font-weight:800;font-size:22px;letter-spacing:.18em;color:#fff}
-.brand-sub-name{font-weight:700;font-size:12px;letter-spacing:.32em;color:#fff;opacity:.7;margin-top:2px}
-.brand-divider{width:1px;height:36px;background:#ffffff1a;margin:0 4px}
+.brand-name{font-weight:800;font-size:33px;letter-spacing:.18em;color:#0f0f1a}
+.brand-sub-name{font-weight:700;font-size:18px;letter-spacing:.32em;color:#0f0f1a;opacity:.7;margin-top:2px}
+.brand-divider{width:1px;height:36px;background:#00000018;margin:0 4px}
 .brand-title{display:flex;flex-direction:column;gap:2px}
-h1{font-size:18px;font-weight:600;color:#e2e2e8;letter-spacing:-.01em}
-.sub{font-size:12px;color:#666;font-weight:500}
-.topbar-meta{font-size:11px;color:#555;text-align:right;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
-.topbar-meta strong{color:#aaa;font-weight:700}
+h1{font-size:27px;font-weight:600;color:#1a1a26;letter-spacing:-.01em}
+.sub{font-size:18px;color:#777;font-weight:500}
+.topbar-meta{font-size:17px;color:#777;text-align:right;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.topbar-meta strong{color:#333;font-weight:700}
 .toolbar{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
-select,button{background:#1e1e2e;color:#fff;border:1px solid #2a2a3e;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;cursor:pointer;transition:background .15s,border-color .15s}
-button:hover{background:#2a2a3e}
-select:hover{border-color:#3a3a4e}
+select,button{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:8px 12px;font-size:20px;font-family:inherit;cursor:pointer;transition:background .15s,border-color .15s}
+button:hover{background:#f4f4f6}
+select:hover{border-color:#a0a0a8}
 .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
-.kpi{background:linear-gradient(135deg,#1e1e2e,#1a1a26);border:1px solid #ffffff08;border-radius:14px;padding:20px 22px;transition:transform .2s,border-color .2s,box-shadow .2s}
-.kpi:hover{transform:translateY(-1px);border-color:#ffffff14;box-shadow:0 8px 24px #00000040}
-.kpi-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;font-weight:600}
-.kpi-value{font-size:24px;font-weight:700;display:flex;align-items:center;gap:8px;letter-spacing:-.01em}
-.pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:.02em}
-.up{background:#10b98122;color:#10b981}.dn{background:#ef444422;color:#ef4444}
+.kpi{background:#fff;border:1px solid #ececef;border-radius:14px;padding:20px 22px;transition:transform .2s,border-color .2s,box-shadow .2s;box-shadow:0 1px 2px #0000000a}
+.kpi:hover{transform:translateY(-1px);border-color:#d4d4d8;box-shadow:0 8px 24px #00000014}
+.kpi-label{font-size:15px;color:#777;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;font-weight:600}
+.kpi-value{font-size:36px;font-weight:700;color:#0f0f1a;display:flex;align-items:center;gap:8px;letter-spacing:-.01em}
+.pill{font-size:17px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:.02em}
+.up{background:#10b9811f;color:#0c8f63}.dn{background:#ef44441f;color:#c8302d}
 .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-.card{background:linear-gradient(180deg,#1e1e2e,#1a1a26);border:1px solid #ffffff08;border-radius:14px;padding:22px;margin-bottom:16px;box-shadow:0 4px 12px #00000020}
+.card{background:#fff;border:1px solid #ececef;border-radius:14px;padding:22px;margin-bottom:16px;box-shadow:0 1px 2px #0000000a}
 .card-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
-.card-title{font-size:13px;font-weight:600;color:#aaa}
+.card-title{font-size:20px;font-weight:600;color:#1a1a26}
 .branch-btns{display:flex;flex-wrap:wrap;gap:4px}
-.bb{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #2a2a3e;background:transparent;color:#666;cursor:pointer;white-space:nowrap}
-.bb.active{background:#2a2a3e;color:#fff;border-color:#444}.bb:hover{background:#252538}
+.bb{font-size:17px;padding:3px 10px;border-radius:20px;border:1px solid #d4d4d8;background:transparent;color:#555;cursor:pointer;white-space:nowrap}
+.bb.active{background:#1a1a26;color:#fff;border-color:#1a1a26}.bb:hover{background:#f4f4f6}
+.bb.active:hover{background:#1a1a26}
 .chart-wrap{position:relative;height:220px}
 .dod-wrap{position:relative;height:260px}
-.summary{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;font-size:12px;color:#666}
-.summary b{color:#ccc;font-weight:600}
-.top-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.top-rank{font-size:11px;color:#444;width:18px;text-align:right;flex-shrink:0}
-.top-name{font-size:13px;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar-wrap{height:3px;background:#252538;border-radius:4px;margin-top:4px}
+.summary{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;font-size:18px;color:#777}
+.summary b{color:#1a1a26;font-weight:600}
+.top-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+.top-rank{font-size:17px;color:#a0a0a8;width:22px;text-align:right;flex-shrink:0;padding-top:2px}
+.top-body{flex:1;min-width:0}
+.top-name{font-size:17px;color:#1a1a26;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.top-meta{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:3px}
+.top-val{font-size:16px;font-weight:600;color:#1a1a26;white-space:nowrap}
+.top-qty{font-size:15px;color:#777;white-space:nowrap}
+.bar-wrap{height:3px;background:#ececef;border-radius:4px;margin-top:6px}
 .bar-fill{height:3px;border-radius:4px}
-.top-val{font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0;min-width:80px;text-align:right}
-.top-qty{font-size:11px;color:#aaa;width:50px;text-align:right;flex-shrink:0}
-.loc-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px}
+.loc-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:18px}
 .spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;gap:12px}
-.spin{width:40px;height:40px;border:3px solid #2a2a3e;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite}
+.spin{width:40px;height:40px;border:3px solid #ececef;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.prog-bar{width:300px;height:4px;background:#2a2a3e;border-radius:4px;overflow:hidden}
+.prog-bar{width:300px;height:4px;background:#ececef;border-radius:4px;overflow:hidden}
 .prog-fill{height:4px;background:#6366f1;border-radius:4px;transition:width .3s}
-.error-box{background:#1e1e2e;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:480px;margin:80px auto;text-align:center}
-.load-banner{background:#181828;border:1px solid #6366f140;border-radius:8px;padding:8px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.error-box{background:#fff;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:480px;margin:80px auto;text-align:center;box-shadow:0 4px 16px #00000010}
+.load-banner{background:#f4f4ff;border:1px solid #6366f140;border-radius:8px;padding:8px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
 #app{display:none}
 .top-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
-.top-cat-head{font-size:12px;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #2a2a3e}
-.sms{font-size:11px!important;padding:4px 8px!important;border-radius:6px!important;background:#252538!important;border-color:#333!important}
-.dod-day-label{font-size:11px;color:#555;text-align:center;margin-top:4px}
+.top-cat-head{font-size:18px;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #ececef}
+.sms{font-size:17px!important;padding:4px 8px!important;border-radius:6px!important;background:#f4f4f6!important;border-color:#d4d4d8!important;color:#1a1a26!important}
+.dod-day-label{font-size:17px;color:#777;text-align:center;margin-top:4px}
 @media(max-width:1100px){.top-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-row{grid-template-columns:1fr}.top-grid{grid-template-columns:1fr}}
 </style>
@@ -74,14 +77,14 @@ select:hover{border-color:#3a3a4e}
 
 <div id="loading" class="spinner">
   <div class="spin"></div>
-  <div id="loadMsg" style="color:#aaa;font-size:14px">Connecting to Shopify…</div>
+  <div id="loadMsg" style="color:#1a1a26;font-size:21px">Connecting to Shopify…</div>
   <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
-  <div id="loadSub" style="color:#555;font-size:12px">First load ~30s · saves locally after</div>
+  <div id="loadSub" style="color:#777;font-size:18px">First load ~30s · saves locally after</div>
 </div>
 <div id="errorBox" class="error-box" style="display:none">
-  <div style="font-size:32px;margin-bottom:12px">⚠️</div>
-  <div style="color:#ef4444;font-weight:700;margin-bottom:8px">Connection error</div>
-  <div id="errMsg" style="color:#aaa;font-size:13px;margin-bottom:20px"></div>
+  <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+  <div style="color:#ef4444;font-weight:700;margin-bottom:8px;font-size:24px">Connection error</div>
+  <div id="errMsg" style="color:#555;font-size:20px;margin-bottom:20px"></div>
   <button onclick="hardRefresh()">↻ Retry</button>
 </div>
 
@@ -113,7 +116,7 @@ select:hover{border-color:#3a3a4e}
   <!-- Progressive loading banner — shows while remaining gyms fetch in background -->
   <div id="loadBanner" class="load-banner" style="display:none">
     <div class="spin" style="width:16px;height:16px;border-width:2px;flex-shrink:0"></div>
-    <span id="bannerMsg" style="font-size:12px;color:#8888cc;flex:1"></span>
+    <span id="bannerMsg" style="font-size:18px;color:#5050a8;flex:1"></span>
     <div class="prog-bar" style="width:120px"><div class="prog-fill" id="bannerProg" style="width:0%"></div></div>
   </div>
 
@@ -129,7 +132,7 @@ select:hover{border-color:#3a3a4e}
     </select>
     <button onclick="refreshData()">↻ Refresh data</button>
     <button onclick="hardRefresh()">Hard refresh</button>
-    <span id="lastRefresh" style="font-size:12px;color:#444;margin-left:4px"></span>
+    <span id="lastRefresh" style="font-size:18px;color:#777;margin-left:4px"></span>
   </div>
 
   <div class="kpi-grid">
@@ -171,7 +174,7 @@ select:hover{border-color:#3a3a4e}
   <div class="card">
     <div class="card-header">
       <div class="card-title">Day-on-day revenue (ex gym products)</div>
-      <select id="dodWeekSel" class="sms" style="min-width:200px;font-size:12px!important;padding:5px 10px!important"></select>
+      <select id="dodWeekSel" class="sms" style="min-width:260px;font-size:18px!important;padding:6px 12px!important"></select>
     </div>
     <div class="branch-btns" id="dodBtns" style="margin-bottom:14px"></div>
     <div class="dod-wrap"><canvas id="dodChart"></canvas></div>
@@ -183,10 +186,10 @@ select:hover{border-color:#3a3a4e}
     <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px">
         <div class="card-title">Top products</div>
-        <span id="topPeriodLabel" style="font-size:11px;color:#555"></span>
+        <span id="topPeriodLabel" style="font-size:17px;color:#777"></span>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <select id="topPeriodSel" style="font-size:12px;padding:5px 10px">
+        <select id="topPeriodSel" style="font-size:18px;padding:6px 12px">
           <option value="7">Last 7 days</option>
           <option value="14">Last 14 days</option>
           <option value="30">Last 30 days</option>
@@ -195,11 +198,11 @@ select:hover{border-color:#3a3a4e}
           <option value="180">Last 180 days</option>
           <option value="365">Last 12 months</option>
         </select>
-        <select id="topSortSel" style="font-size:12px;padding:5px 10px">
+        <select id="topSortSel" style="font-size:18px;padding:6px 12px">
           <option value="t" selected>Revenue</option>
           <option value="q">Quantity sold</option>
         </select>
-        <select id="topLocSel" style="font-size:12px;padding:5px 10px">
+        <select id="topLocSel" style="font-size:18px;padding:6px 12px">
           <option value="all">All locations</option>
         </select>
       </div>
@@ -602,8 +605,8 @@ function makeBar(id,labels,data,existing,inProgressIdx=-1){
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       plugins:{legend:{display:false},
         tooltip:{callbacks:{label:c=> c.dataIndex===inProgressIdx ? `${$m(c.raw)} (in progress)` : $m(c.raw)}}},
-      scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},
-              y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
+      scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:17},autoSkip:true,maxRotation:45}},
+              y:{grid:{color:"rgba(0,0,0,.08)"},ticks:{color:"#555",font:{size:17},callback:$k}}}}
   });
 }
 
@@ -627,13 +630,12 @@ function renderTopList(elId,items,color,sortBy){
   document.getElementById(elId).innerHTML=sorted.length?sorted.map((r,i)=>`
     <div class="top-row">
       <div class="top-rank">${i+1}</div>
-      <div style="flex:1;min-width:0">
+      <div class="top-body">
         <div class="top-name" title="${r.n.replace(/"/g,'&quot;')}">${r.n}</div>
+        <div class="top-meta"><div class="top-val">${$m(r.t)}</div><div class="top-qty">${Math.round(r.q)} sold</div></div>
         <div class="bar-wrap"><div class="bar-fill" style="background:${color};width:${Math.round((r[key]/max)*100)}%"></div></div>
       </div>
-      <div class="top-val">${$m(r.t)}</div>
-      <div class="top-qty">${Math.round(r.q)} sold</div>
-    </div>`).join(''):'<div style="color:#444;text-align:center;padding:32px">No data</div>';
+    </div>`).join(''):'<div style="color:#777;text-align:center;padding:32px;font-size:18px">No data</div>';
 }
 
 // ── Selectors setup (called after each gym batch loads) ───────────────────────
@@ -671,7 +673,7 @@ function render(){
   makeBtns("wowBtns",branches,wowLoc,i=>{wowLoc=i;render();});
   makeBtns("dodBtns",branches,dodLoc,i=>{dodLoc=i;render();});
 
-  const inProgressPill = `<span class="pill" style="background:#6366f122;color:#a5a5ff">In progress</span>`;
+  const inProgressPill = `<span class="pill" style="background:#6366f11f;color:#4338ca">In progress</span>`;
   const periodPill = d => d.inProgress ? inProgressPill : (d.prev>0?pill(d.growth):"");
 
   // MoM chart
@@ -706,8 +708,8 @@ function render(){
           }}
         },
         scales:{
-          x:{grid:{display:false},ticks:{color:"#888",font:{size:13,weight:"600"}}},
-          y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}
+          x:{grid:{display:false},ticks:{color:"#1a1a26",font:{size:20,weight:"600"}}},
+          y:{grid:{color:"rgba(0,0,0,.08)"},ticks:{color:"#555",font:{size:17},callback:$k}}
         }
       }
     });
