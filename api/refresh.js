@@ -286,6 +286,24 @@ function lineQty(li){
   return parseFloat(li.quantity) || 0;
 }
 
+// Shopify returns createdAt in UTC. Bucketing by `.substring(0, 10)` of a UTC
+// timestamp shifts every order placed between midnight and ~09:30 ACST onto
+// the previous day from an Australian perspective. Convert to Adelaide local
+// date so the daily/weekly aggregates match what the gym managers actually
+// experienced. Adelaide is the canonical TZ for the dashboard (HQ is in SA);
+// the 1.5h offset to AWST gyms is small enough not to materially skew the
+// daily totals (it'd only misattribute orders placed 22:30–24:00 AWST).
+const ADELAIDE_DATE_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Australia/Adelaide",
+  year: "numeric", month: "2-digit", day: "2-digit"
+});
+function adelaideDate(isoStr){
+  if (!isoStr) return "";
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return "";
+  return ADELAIDE_DATE_FMT.format(d); // "YYYY-MM-DD"
+}
+
 function buildGymData(orders){
   const seenOrders = new Set();
   const dedup = [];
@@ -343,7 +361,7 @@ function buildGymData(orders){
       ng = orderTotal; gym = 0;
     }
 
-    const date = (o.createdAt || "").substring(0, 10);
+    const date = adelaideDate(o.createdAt);
     if (!date || date < "2020") continue;
     if (!daily[date]) daily[date] = {};
     if (!daily[date][branch]) daily[date][branch] = [0, 0, 0];
