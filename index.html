@@ -437,6 +437,11 @@ function buildGymData(allOrders){
 }
 
 // ── Calculations ──────────────────────────────────────────────────────────────
+function currentMonthKey(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+
 function calcMoM(daily,branch,days){
   const cut=days>0?new Date(Date.now()-days*864e5):null;
   const m={};
@@ -448,8 +453,10 @@ function calcMoM(daily,branch,days){
     else if(branches[branch]){m[k].rev+=branches[branch][0];m[k].orders+=branches[branch][2];}
   });
   const keys=Object.keys(m).sort();
-  return keys.map((k,i)=>({label:mLabel(k),revenue:m[k].rev,orders:m[k].orders,
-    prev:i>0?m[keys[i-1]].rev:0,growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0}));
+  const cur=currentMonthKey();
+  return keys.map((k,i)=>({key:k,label:mLabel(k),revenue:m[k].rev,orders:m[k].orders,
+    prev:i>0?m[keys[i-1]].rev:0,growth:i>0?grow(m[k].rev,m[keys[i-1]].rev):0,
+    inProgress:k===cur}));
 }
 
 function calcWoW(daily,branch){
@@ -461,8 +468,10 @@ function calcWoW(daily,branch){
     else if(branches[branch]){w[k].rev+=branches[branch][0];w[k].orders+=branches[branch][2];}
   });
   const keys=Object.keys(w).sort().slice(-16);
-  return keys.map((k,i,arr)=>({label:wLabel(k),revenue:w[k].rev,orders:w[k].orders,
-    prev:i>0?w[arr[i-1]].rev:0,growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0}));
+  const cur=isoWeek(new Date());
+  return keys.map((k,i,arr)=>({key:k,label:wLabel(k),revenue:w[k].rev,orders:w[k].orders,
+    prev:i>0?w[arr[i-1]].rev:0,growth:i>0?grow(w[k].rev,w[arr[i-1]].rev):0,
+    inProgress:k===cur}));
 }
 
 // Day-on-day: returns [Mon,Tue,Wed,Thu,Fri,Sat,Sun] revenue for the given ISO week
@@ -501,14 +510,19 @@ function calcLoc(daily,days){
 }
 
 // ── Charts & UI helpers ───────────────────────────────────────────────────────
-function makeBar(id,labels,data,existing){
-  const colors=data.map((v,i)=>i===0?"#6366f1":v>=(data[i-1]||0)?"#10b981":"#ef4444");
+function makeBar(id,labels,data,existing,inProgressIdx=-1){
+  const colors=data.map((v,i)=>{
+    if(i===inProgressIdx) return "rgba(99,102,241,0.4)";
+    if(i===0) return "#6366f1";
+    return v>=(data[i-1]||0)?"#10b981":"#ef4444";
+  });
   if(existing) existing.destroy();
   return new Chart(document.getElementById(id),{
     type:"bar",
     data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4,maxBarThickness:52}]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>$m(c.raw)}}},
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=> c.dataIndex===inProgressIdx ? `${$m(c.raw)} (in progress)` : $m(c.raw)}}},
       scales:{x:{grid:{display:false},ticks:{color:"#555",font:{size:11},autoSkip:true,maxRotation:45}},
               y:{grid:{color:"rgba(255,255,255,.06)"},ticks:{color:"#555",font:{size:11},callback:$k}}}}
   });
@@ -578,17 +592,22 @@ function render(){
   makeBtns("wowBtns",branches,wowLoc,i=>{wowLoc=i;render();});
   makeBtns("dodBtns",branches,dodLoc,i=>{dodLoc=i;render();});
 
+  const inProgressPill = `<span class="pill" style="background:#6366f122;color:#a5a5ff">In progress</span>`;
+  const periodPill = d => d.inProgress ? inProgressPill : (d.prev>0?pill(d.growth):"");
+
   // MoM chart
   const momData=calcMoM(daily,momBranch,momDays);
-  momC=makeBar("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC);
+  const momIp=momData.findIndex(d=>d.inProgress);
+  momC=makeBar("momChart",momData.map(d=>d.label),momData.map(d=>d.revenue),momC,momIp);
   document.getElementById("momSummary").innerHTML=momData.slice(-3).map(d=>
-    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${periodPill(d)}</span>`).join('');
 
   // WoW chart
   const wowData=calcWoW(daily,wowBranch);
-  wowC=makeBar("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC);
+  const wowIp=wowData.findIndex(d=>d.inProgress);
+  wowC=makeBar("wowChart",wowData.map(d=>d.label),wowData.map(d=>d.revenue),wowC,wowIp);
   document.getElementById("wowSummary").innerHTML=wowData.slice(-3).map(d=>
-    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${d.prev>0?pill(d.growth):""}</span>`).join('');
+    `<span><b>${d.label}:</b> ${$k(d.revenue)} ${periodPill(d)}</span>`).join('');
 
   // DoD chart — Mon→Sun, weekday indigo, weekend green
   const weekKey=document.getElementById("dodWeekSel").value;
@@ -616,16 +635,22 @@ function render(){
     const total=dodData.reduce((s,v)=>s+v,0);
     const maxV=Math.max(...dodData);
     const bestDays=DAY_NAMES.filter((_,i)=>dodData[i]===maxV&&maxV>0);
+    const isCurrentWeek = weekKey===isoWeek(new Date());
+    const totalLabel = isCurrentWeek ? "Week so far" : "Week total";
     document.getElementById("dodSummary").innerHTML=total>0
-      ?`<span><b>Week total:</b> ${$m(total)}</span>${bestDays.length?`<span><b>Best day:</b> ${bestDays.join("/")} (${$m(maxV)})</span>`:""}`
+      ?`<span><b>${totalLabel}:</b> ${$m(total)}</span>${bestDays.length?`<span><b>Best day:</b> ${bestDays.join("/")} (${$m(maxV)})</span>`:""}`
       :'<span style="color:#444">No data for this week</span>';
   }
 
   // KPIs — MoM/WoW compare the last *completed* period to the one before
   // (skipping the in-progress current month/week so the growth isn't misleading).
   const kpi=calcKPI(daily,days);
-  const momCompleted=momData.length>=3?momData[momData.length-2]:null;
-  const wowCompleted=wowData.length>=3?wowData[wowData.length-2]:null;
+  const lastCompleted = arr => {
+    for(let i=arr.length-1;i>=0;i--){ if(!arr[i].inProgress && arr[i].prev>0) return arr[i]; }
+    return null;
+  };
+  const momCompleted=lastCompleted(momData);
+  const wowCompleted=lastCompleted(wowData);
   document.getElementById("kOrd").innerHTML=kpi.orders.toLocaleString("en-AU");
   document.getElementById("kMoM").innerHTML=momCompleted?pill(momCompleted.growth):"—";
   document.getElementById("kWoW").innerHTML=wowCompleted?pill(wowCompleted.growth):"—";
