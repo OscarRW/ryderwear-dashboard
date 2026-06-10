@@ -46,25 +46,21 @@ const isGP = li => {
 // productType doesn't match one of these is excluded from the top lists.
 const TOP_CATEGORIES = ["clothing", "accessories", "supplements", "drinks", "food"];
 
-// Per-product category overrides keyed by exact line-item title. Used to
-// reclassify SKUs that are mis-tagged upstream in Shopify (e.g., RTD
-// shakes coming through as Supplements rather than Drinks). Wins over
-// productType. Add new entries as they're discovered.
-const PRODUCT_CATEGORY_OVERRIDES = {
-  "ON Pure Pro - Chocolate": "drinks",
-  "ON Pure Pro - Banana": "drinks",
-  "ON Pure Pro - Vanilla": "drinks",
-  "Faction Labs Disorder Energy RTD - Blue Pearl": "drinks",
-  "Faction Labs Disorder Energy RTD - Green Haze": "drinks",
-  "ON Amino Energy Sparkling RTD - Mango Pinelime": "drinks",
-  "Ghost Whey Protein - Choc Chip Cookie": "supplements",
-};
+// Single-SKU category overrides keyed by exact line-item title. Use only
+// when a prefix would be too broad. Most overrides belong in the prefix
+// list below. Exact matches win first, then prefix matches, then productType.
+const PRODUCT_CATEGORY_OVERRIDES = {};
 
 // Prefix-based overrides for product families with many flavor variants.
 // Matched case-insensitively against the start of the line-item title.
-// Exact overrides above win first, then prefix matches, then productType.
+// Reclassifies SKUs mis-tagged upstream in Shopify (e.g., RTD shakes
+// coming through as Supplements rather than Drinks).
 const PRODUCT_CATEGORY_PREFIX_OVERRIDES = [
-  ["ghost energy rtd", "drinks"],
+  ["ghost energy rtd",                 "drinks"],
+  ["on pure pro",                      "drinks"],
+  ["faction labs disorder energy rtd", "drinks"],
+  ["on amino energy sparkling rtd",    "drinks"],
+  ["ghost whey protein",               "supplements"],
 ];
 
 const topCat = li => {
