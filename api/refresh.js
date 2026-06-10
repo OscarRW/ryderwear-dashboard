@@ -60,9 +60,21 @@ const PRODUCT_CATEGORY_OVERRIDES = {
   "Ghost Whey Protein - Choc Chip Cookie": "supplements",
 };
 
+// Prefix-based overrides for product families with many flavor variants.
+// Matched case-insensitively against the start of the line-item title.
+// Exact overrides above win first, then prefix matches, then productType.
+const PRODUCT_CATEGORY_PREFIX_OVERRIDES = [
+  ["ghost energy rtd", "drinks"],
+];
+
 const topCat = li => {
-  const override = PRODUCT_CATEGORY_OVERRIDES[li.title || ""];
+  const title = li.title || "";
+  const override = PRODUCT_CATEGORY_OVERRIDES[title];
   if (override) return override;
+  const titleLower = title.toLowerCase();
+  for (const [prefix, cat] of PRODUCT_CATEGORY_PREFIX_OVERRIDES) {
+    if (titleLower.startsWith(prefix)) return cat;
+  }
   const pt = ((li.productType || "")).trim().toLowerCase();
   return TOP_CATEGORIES.includes(pt) ? pt : null;
 };
