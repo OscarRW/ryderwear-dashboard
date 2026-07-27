@@ -51,22 +51,26 @@ const TOP_CATEGORIES = ["clothing", "accessories", "supplements", "drinks", "foo
 // list below. Exact matches win first, then prefix matches, then productType.
 const PRODUCT_CATEGORY_OVERRIDES = {};
 
-// Prefix-based overrides for product families with many flavor variants.
+// "RTD" (ready-to-drink) anywhere in the title means it's a Drink, whatever
+// Shopify's productType says. Covers every brand's canned/bottled line —
+// Ghost Energy RTD, Faction Labs Disorder Energy RTD, ON Amino Energy
+// Sparkling RTD — including flavours that don't exist yet. Matched on a word
+// boundary so it can't fire on "RTD" buried inside another word.
+const RTD_TITLE = /\brtd\b/i;
+
+// Prefix-based overrides for families the RTD rule can't see: bottled shakes
+// that omit "RTD" from the title, and powders mis-tagged as Drinks upstream.
 // Matched case-insensitively against the start of the line-item title.
-// Reclassifies SKUs mis-tagged upstream in Shopify (e.g., RTD shakes
-// coming through as Supplements rather than Drinks).
 const PRODUCT_CATEGORY_PREFIX_OVERRIDES = [
-  ["ghost energy rtd",                 "drinks"],
-  ["on pure pro",                      "drinks"],
-  ["faction labs disorder energy rtd", "drinks"],
-  ["on amino energy sparkling rtd",    "drinks"],
-  ["ghost whey protein",               "supplements"],
+  ["on pure pro",        "drinks"],      // bottled protein shake, no "RTD" in title
+  ["ghost whey protein", "supplements"], // powder, mis-tagged upstream
 ];
 
 const topCat = li => {
   const title = li.title || "";
   const override = PRODUCT_CATEGORY_OVERRIDES[title];
   if (override) return override;
+  if (RTD_TITLE.test(title)) return "drinks";
   const titleLower = title.toLowerCase();
   for (const [prefix, cat] of PRODUCT_CATEGORY_PREFIX_OVERRIDES) {
     if (titleLower.startsWith(prefix)) return cat;
