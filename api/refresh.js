@@ -94,6 +94,7 @@ const GYM_LOCATION_MAP = [
   ["munno para",    "Munno Para, SA"],
   ["rockingham",    "Rockingham, WA"],
   ["mandurah",      "Mandurah, WA"],
+  ["beckenham",     "Beckenham, WA"],
 ];
 function mapLocation(name){
   const lower = (name || "").toLowerCase();
