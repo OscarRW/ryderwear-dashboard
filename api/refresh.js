@@ -95,6 +95,9 @@ const GYM_LOCATION_MAP = [
   ["rockingham",    "Rockingham, WA"],
   ["mandurah",      "Mandurah, WA"],
   ["beckenham",     "Beckenham, WA"],
+  // Trades as "The Lodge"; Cin7/Shopify still carry the site as Brahma
+  // Lodge, so match on "lodge" to cover the name under either spelling.
+  ["lodge",         "The Lodge, SA"],
 ];
 function mapLocation(name){
   const lower = (name || "").toLowerCase();
