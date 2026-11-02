@@ -293,7 +293,11 @@ function render(){
     el("navAdmin").style.display = "inline-block";
   }
 
-  const basisLabel = data.basis === "apparel" ? "apparel only (ex gym products)" : "all in-store sales";
+  const basisLabel = {
+    exgym_giftcards: "POS sales ex gym products, incl. gift cards",
+    exgym: "POS sales ex gym products",
+    total: "all POS sales"
+  }[data.basis] || data.basis;
   el("metaRow").innerHTML = `
     <span>Today <b>${esc(cal.today)}</b></span>
     <span>Week <b>day ${cal.weekDayIndex} of 7</b></span>

@@ -66,11 +66,15 @@ function addDays(iso, n){
   return toISO(d);
 }
 
-// daily[date][gym] = [apparelRevenue, gymProductRevenue, orderCount]
+// daily[date][gym] = [exGymRevenue, excludedRevenue, orderCount, giftCardRevenue]
+// where giftCardRevenue is a slice of excludedRevenue, not a fourth bucket.
+// Snapshots written before the gift card split have no index 3 and read as 0.
 function cellValue(cell, basis){
   if (!cell) return 0;
-  const apparel = cell[0] || 0;
-  return basis === "apparel" ? apparel : apparel + (cell[1] || 0);
+  const exGym = cell[0] || 0;
+  if (basis === "exgym") return exGym;
+  if (basis === "total") return exGym + (cell[1] || 0);
+  return exGym + (cell[3] || 0); // exgym_giftcards
 }
 
 function sumRange(daily, gym, fromISO, toISOInclusive, basis){

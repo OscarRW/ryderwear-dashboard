@@ -36,10 +36,25 @@ const SHOPIFY_API_VERSION = "2024-10";
 // shipping insurance, lanyards, FOB, empty productType — is treated as
 // "gym/excluded" revenue and netted out. Case-insensitive match on the
 // trimmed productType.
+//
+// Note there is no "Gym Products" productType in this store; an earlier
+// revision matched /gym/i against productType, hit nothing, and so reported
+// total revenue as ex-gym. The allowlist above is the definition.
 const APPAREL_PRODUCT_TYPES = new Set(["clothing", "shoes", "socks", "accessories"]);
 const isGP = li => {
   const pt = ((li.productType || "")).trim().toLowerCase();
   return !APPAREL_PRODUCT_TYPES.has(pt);
+};
+
+// Gift card sales are tracked as their own slice so the target dashboard can
+// count them while the sales dashboard's ex-gym headline leaves them out.
+// They sit inside the "gym/excluded" bucket, not beside it — see buildGymData.
+// Punctuation and spacing are stripped so "Gift Cards", "Gift-Card" and
+// "giftcard" all land the same way.
+const GIFT_CARD_PRODUCT_TYPES = new Set(["giftcard", "giftcards", "giftcertificate", "giftcertificates"]);
+const isGiftCard = li => {
+  const pt = ((li.productType || "")).trim().toLowerCase().replace(/[^a-z]/g, "");
+  return GIFT_CARD_PRODUCT_TYPES.has(pt);
 };
 
 // Top-products category buckets shown on the dashboard. Anything whose
@@ -189,11 +204,17 @@ async function cancelBulkOp(id){
   return gql(`mutation { bulkOperationCancel(id: "${id}") { bulkOperation { status } userErrors { message } } }`);
 }
 
-async function startBulkOrders(createdSinceISO){
-  // Bulk ops don't accept variables in the inner query string, so we inline
-  // the date filter. Shopify's search syntax: created_at:>=YYYY-MM-DD.
-  const dateFilter = createdSinceISO.slice(0, 10);
-  const innerQuery = `
+// The channel/retail fields the POS filter wants. They're requested on their
+// own so that, if the configured API version doesn't expose one, the bulk
+// start can be retried without them instead of the cron failing outright.
+const RETAIL_CHANNEL_FIELDS = `
+            retailLocation { id name }
+            channelInformation { channelDefinition { handle channelName } }
+            app { name }
+`;
+
+function buildOrdersQuery(dateFilter, retailFields){
+  return `
     {
       orders(query: "created_at:>=${dateFilter}", sortKey: CREATED_AT) {
         edges {
@@ -203,6 +224,7 @@ async function startBulkOrders(createdSinceISO){
             displayFinancialStatus
             currentTotalPriceSet { shopMoney { amount } }
             physicalLocation { id name }
+${retailFields}
             lineItems {
               edges {
                 node {
@@ -220,18 +242,38 @@ async function startBulkOrders(createdSinceISO){
       }
     }
   `;
-  const mutation = `
-    mutation runBulk($q: String!) {
-      bulkOperationRunQuery(query: $q) {
-        bulkOperation { ${BULK_OP_FIELDS} }
-        userErrors { field message }
-      }
+}
+
+const BULK_MUTATION = `
+  mutation runBulk($q: String!) {
+    bulkOperationRunQuery(query: $q) {
+      bulkOperation { ${BULK_OP_FIELDS} }
+      userErrors { field message }
     }
-  `;
-  const data = await gql(mutation, { q: innerQuery });
+  }
+`;
+
+async function runBulkQuery(innerQuery){
+  const data = await gql(BULK_MUTATION, { q: innerQuery });
   const errs = data.bulkOperationRunQuery.userErrors || [];
   if (errs.length) throw new Error(`Bulk start: ${JSON.stringify(errs)}`);
   return data.bulkOperationRunQuery.bulkOperation;
+}
+
+async function startBulkOrders(createdSinceISO){
+  // Bulk ops don't accept variables in the inner query string, so we inline
+  // the date filter. Shopify's search syntax: created_at:>=YYYY-MM-DD.
+  const dateFilter = createdSinceISO.slice(0, 10);
+  try {
+    return await runBulkQuery(buildOrdersQuery(dateFilter, RETAIL_CHANNEL_FIELDS));
+  } catch (e) {
+    // An API version that doesn't expose one of the channel fields would
+    // otherwise stall the cron indefinitely. Drop them and carry on: the POS
+    // filter falls back to "was rung up at a retail location", which is what
+    // this job did before the channel fields existed.
+    console.warn("Bulk start with retail channel fields failed, retrying without:", e.message);
+    return runBulkQuery(buildOrdersQuery(dateFilter, ""));
+  }
 }
 
 // ── Parse JSONL output ────────────────────────────────────────────────────
@@ -297,6 +339,32 @@ function adelaideDate(isoStr){
   return ADELAIDE_DATE_FMT.format(d); // "YYYY-MM-DD"
 }
 
+// Where the sale was rung up. retailLocation is the current field; older
+// snapshots (and any response where the field wasn't requested) fall back to
+// physicalLocation, which carried the same name.
+function retailLocationName(order){
+  const retail = order.retailLocation && order.retailLocation.name;
+  if (retail) return retail;
+  return (order.physicalLocation && order.physicalLocation.name) || null;
+}
+
+// True for an order taken on a POS register rather than online. The gym
+// location map already excludes anything rung up away from a gym, but an
+// online order can be assigned a physical location, so the channel is checked
+// explicitly. Falls back to "has a retail location" when the channel fields
+// are absent — that's how every snapshot taken before this change looks, and
+// treating those as non-retail would blank the dashboard.
+function isRetailPosOrder(order){
+  const channel = (order.channelInformation || {}).channelDefinition || {};
+  const handle = String(channel.handle || "").toLowerCase();
+  if (handle) return handle === "pos" || handle === "point-of-sale";
+
+  const appName = String((order.app || {}).name || "").toLowerCase();
+  if (appName) return appName.includes("point of sale") || appName === "pos";
+
+  return !!retailLocationName(order);
+}
+
 function buildGymData(orders){
   const seenOrders = new Set();
   const dedup = [];
@@ -327,40 +395,54 @@ function buildGymData(orders){
     bucket[pKey].q += lineQty(li);
   };
 
-  let processed = 0;
+  let processed = 0, skippedNonRetail = 0;
   for (const o of dedup){
-    const locName = (o.physicalLocation && o.physicalLocation.name) || null;
+    // Retail/POS only. retailLocation is set by the register that rang the
+    // sale; physicalLocation is the older field and is the fallback for
+    // snapshots taken before the channel fields were requested.
+    const locName = retailLocationName(o);
     const branch = mapLocation(locName);
     if (!branch) continue;
+    if (!isRetailPosOrder(o)){ skippedNonRetail++; continue; }
 
     const orderTotal = parseFloat(((o.currentTotalPriceSet || {}).shopMoney || {}).amount || 0);
     if (!(orderTotal > 0)) continue;
 
     const lines = o.lineItems || [];
-    let lineGym = 0, lineNonGym = 0;
+    let lineGym = 0, lineNonGym = 0, lineGift = 0;
     for (const li of lines){
       li.productType = (li.product && li.product.productType) || "";
       li.variantTitle = (li.variant && li.variant.title) || "";
       const r = lineUnit(li) * lineQty(li);
-      if (isGP(li)) lineGym += r; else lineNonGym += r;
+      if (isGP(li)){
+        lineGym += r;
+        // Gift cards are a subset of the excluded bucket, not a fourth split.
+        if (isGiftCard(li)) lineGift += r;
+      } else {
+        lineNonGym += r;
+      }
     }
     const lineSum = lineGym + lineNonGym;
-    let ng, gym;
+    let ng, gym, gift;
     if (lineSum > 0){
+      // Prorate the order total across the buckets so discounts, tax and any
+      // shipping land proportionally rather than all on one side.
       const ratio = lineGym / lineSum;
-      gym = orderTotal * ratio;
-      ng  = orderTotal - gym;
+      gym  = orderTotal * ratio;
+      ng   = orderTotal - gym;
+      gift = orderTotal * (lineGift / lineSum);
     } else {
-      ng = orderTotal; gym = 0;
+      ng = orderTotal; gym = 0; gift = 0;
     }
 
     const date = adelaideDate(o.createdAt);
     if (!date || date < "2020") continue;
     if (!daily[date]) daily[date] = {};
-    if (!daily[date][branch]) daily[date][branch] = [0, 0, 0];
+    if (!daily[date][branch]) daily[date][branch] = [0, 0, 0, 0];
     daily[date][branch][0] += ng;
     daily[date][branch][1] += gym;
     daily[date][branch][2] += 1;
+    daily[date][branch][3] = (daily[date][branch][3] || 0) + gift;
 
     const createdTs = new Date(o.createdAt || 0).getTime();
     if (lines.length && Number.isFinite(createdTs)){
@@ -415,7 +497,15 @@ function buildGymData(orders){
       tops[key] = out;
     }
   }
-  return { timestamp: Date.now(), daily, tops, branches, totalOrders: processed };
+  // `schema` records how the daily cells are laid out, so a reader can tell a
+  // snapshot that carries the gift-card slice from one written before it.
+  return {
+    timestamp: Date.now(),
+    schema: 2,
+    daily, tops, branches,
+    totalOrders: processed,
+    skippedNonRetail
+  };
 }
 
 async function processCompleted(op, startTs){
@@ -532,3 +622,9 @@ module.exports = async function handler(req, res){
 };
 
 module.exports.config = { maxDuration: 60 };
+
+// Exposed for the offline test harness. The route itself stays module.exports;
+// Vercel ignores extra properties hung off it.
+module.exports._internals = {
+  buildGymData, isRetailPosOrder, retailLocationName, isGiftCard, isGP, buildOrdersQuery
+};

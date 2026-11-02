@@ -118,12 +118,14 @@ label{display:block;font-size:13px;font-weight:700;color:#777;text-transform:upp
     <div class="card">
       <div class="card-title">What counts toward target</div>
       <div class="card-note">
-        Applies to every gym and to the whole tracking dashboard. Change it and the
+        Retail takings on the gym POS registers only — online orders never count.
+        Applies to every gym and to the whole tracking dashboard; change it and the
         percentages are recalculated against the same targets.
       </div>
-      <select id="basisSel" style="max-width:420px">
-        <option value="total">All in-store sales — apparel, supplements, drinks, food</option>
-        <option value="apparel">Apparel only — matches "ex gym products" on the sales dashboard</option>
+      <select id="basisSel" style="max-width:560px">
+        <option value="exgym_giftcards">Ex gym products, including gift card sales — clothing, shoes, socks, accessories, gift cards</option>
+        <option value="exgym">Ex gym products only — matches the sales dashboard headline exactly</option>
+        <option value="total">Every category — also counts supplements, drinks, food and memberships</option>
       </select>
     </div>
 

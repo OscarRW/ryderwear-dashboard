@@ -7,11 +7,26 @@ const { GYM_LABELS } = require("./_gyms");
 const KV_TARGETS = "targets";
 const FIELDS = ["daily", "weekly", "monthly"];
 
-// Which revenue counts toward target:
-//   total   — every order taken at the gym: apparel, supplements, drinks, food
-//   apparel — apparel only, matching the sales dashboard's "ex gym products"
-const BASES = ["total", "apparel"];
-const DEFAULT_BASIS = "total";
+// Which revenue counts toward target. All three are retail/POS takings at the
+// gym; they differ only in which product categories count.
+//
+//   exgym_giftcards — Clothing, Shoes, Socks, Accessories and Gift Cards.
+//                     The sales dashboard's "ex gym products" plus gift card
+//                     sales. This is the default.
+//   exgym           — the same without gift cards, matching the sales
+//                     dashboard's headline figure exactly.
+//   total           — every category, including supplements, drinks, food
+//                     and memberships.
+//
+// There is no "Gym Products" category in Shopify; "ex gym products" means the
+// apparel allowlist in api/refresh.js, which is where the definition lives.
+const BASES = ["exgym_giftcards", "exgym", "total"];
+const DEFAULT_BASIS = "exgym_giftcards";
+
+// Snapshots written before gift cards were split out have no fourth element
+// in their daily cells, so they report $0 of gift card sales until the next
+// refresh cron runs. That understates the default basis rather than breaking it.
+const LEGACY_BASIS_ALIASES = { apparel: "exgym" };
 
 async function loadTargets(){
   const stored = await kvGet(KV_TARGETS);
@@ -25,7 +40,8 @@ async function loadTargets(){
       monthly: Number(t.monthly) || 0
     };
   }
-  const basis = BASES.includes(stored && stored.basis) ? stored.basis : DEFAULT_BASIS;
+  const storedBasis = LEGACY_BASIS_ALIASES[stored && stored.basis] || (stored && stored.basis);
+  const basis = BASES.includes(storedBasis) ? storedBasis : DEFAULT_BASIS;
   return {
     gyms: out,
     basis,
@@ -34,4 +50,4 @@ async function loadTargets(){
   };
 }
 
-module.exports = { KV_TARGETS, FIELDS, BASES, DEFAULT_BASIS, loadTargets };
+module.exports = { KV_TARGETS, FIELDS, BASES, DEFAULT_BASIS, LEGACY_BASIS_ALIASES, loadTargets };
