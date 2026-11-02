@@ -7,8 +7,11 @@
 // purpose: gym accounts read /api/progress, which returns percentages only,
 // with no field a revenue number could be reconstructed from.
 //
+// Only weekly and monthly are entered. The daily target is derived as
+// weekly ÷ 7 by lib/targets.js and is never stored.
+//
 // Shape:
-//   { updatedAt, updatedBy, basis, gyms: { "<label>": { daily, weekly, monthly } } }
+//   { updatedAt, updatedBy, basis, gyms: { "<label>": { weekly, monthly } } }
 
 const { requireSession, kvSet, parseBody } = require("../lib/auth");
 const { GYM_LABELS } = require("../lib/gyms");

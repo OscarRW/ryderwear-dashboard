@@ -28,11 +28,16 @@ a.navlink:hover,button.navlink:hover{background:#f4f4f6}
 .meta-row b{color:#555;font-weight:600}
 
 .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:12px}
-.hero-card{background:#fff;border:1px solid #ececef;border-radius:16px;padding:24px;box-shadow:0 1px 2px #0000000a}
-.hero-label{font-size:15px;color:#777;text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-bottom:4px}
-.hero-span{font-size:14px;color:#a0a0a8;font-weight:500;margin-bottom:14px}
-.hero-value{font-size:52px;font-weight:800;letter-spacing:-.02em;line-height:1;display:flex;align-items:baseline;gap:10px}
-.hero-value small{font-size:22px;font-weight:600;color:#a0a0a8}
+.hero-card{background:#fff;border:1px solid #ececef;border-radius:18px;padding:26px 28px 24px;box-shadow:0 1px 2px #0000000a;transition:border-color .2s,box-shadow .2s}
+.hero-card:hover{border-color:#e0e0e4;box-shadow:0 10px 30px #00000012}
+.hero-label{font-size:14px;color:#8a8a92;text-transform:uppercase;letter-spacing:.12em;font-weight:700;margin-bottom:3px}
+.hero-span{font-size:14px;color:#a8a8ae;font-weight:500;margin-bottom:18px}
+/* Proportional figures, not tabular — tabular digits read loose at display sizes */
+.hero-value{font-size:62px;font-weight:800;letter-spacing:-.035em;line-height:.95;display:flex;align-items:baseline;gap:10px}
+.hero-value small{font-size:20px;font-weight:600;color:#a8a8ae;letter-spacing:0}
+.hero-spark{margin-top:16px}
+.hero-spark svg{display:block;width:100%;height:30px}
+.hero-spark-note{font-size:12px;color:#b0b0b6;margin-top:5px;letter-spacing:.03em}
 .hero-meter{margin-top:18px}
 .hero-meter .meter-track{height:12px}
 .hero-meter .meter-fill{height:12px}
@@ -62,40 +67,46 @@ a.navlink:hover,button.navlink:hover{background:#f4f4f6}
 .lg-bar{width:16px;height:9px;border-radius:2px;background:#10b981}
 .lg-exp{width:2px;height:13px;background:#1a1a2666;border-radius:1px}
 .lg-proj{width:9px;height:9px;background:#1a1a26;transform:rotate(45deg);border-radius:1px}
-.lg-100{width:16px;height:0;border-top:2px dashed #1a1a2655}
+.lg-100{width:14px;height:2px;background:#1a1a26;opacity:.5;border-radius:1px}
 
-/* grid: gym name | plot | values */
-.crow,.caxis{display:grid;grid-template-columns:132px minmax(0,1fr) 104px;align-items:center;gap:12px}
-.caxis{margin-bottom:6px}
+/* grid: rank | gym name | plot | values */
+.crow,.caxis{display:grid;grid-template-columns:24px 136px minmax(0,1fr) 108px;align-items:center;gap:12px}
+.caxis{margin-bottom:8px}
 .caxis-ticks{position:relative;height:15px}
-.caxis-ticks span{position:absolute;transform:translateX(-50%);font-size:12px;color:#aaa;font-weight:600;white-space:nowrap}
-.crow{padding:4px 0}
+.caxis-ticks span{position:absolute;font-size:12px;color:#a8a8ae;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.crow{padding:5px 0;border-radius:8px;transition:background .15s}
+.crow:hover{background:#fafafb}
+.crank{font-size:13px;font-weight:700;color:#c0c0c8;text-align:right;font-variant-numeric:tabular-nums}
+.crow.lead .crank{color:#0c8f63}
 .clabel{font-size:14px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow.lead .clabel{color:#0f0f1a;font-weight:700}
 .cplot{position:relative;height:22px}
-.ctrack{position:absolute;inset:4px 0;background:#f4f4f6;border-radius:5px;overflow:hidden}
-.cgridline{position:absolute;top:0;bottom:0;width:1px;background:#00000010}
-.cbar{position:absolute;top:4px;height:14px;border-radius:5px;transition:width .35s ease}
+.ctrack{position:absolute;inset:6px 0;background:#f2f2f5;border-radius:5px}
+.cgridline{position:absolute;top:2px;bottom:2px;width:1px;background:#00000012}
+.cbar{position:absolute;top:6px;height:10px;border-radius:5px;transition:width .35s ease}
 .cbar.good{background:#10b981}.cbar.warn{background:#f59e0b}.cbar.bad{background:#ef4444}.cbar.none{background:#d4d4d8}
-.cexp{position:absolute;top:1px;height:20px;width:2px;background:#1a1a2666;border-radius:1px}
-.cproj{position:absolute;top:5px;width:11px;height:11px;background:#1a1a26;transform:translateX(-50%) rotate(45deg);border-radius:2px;box-shadow:0 0 0 2px #fff}
-.c100{position:absolute;top:-1px;bottom:-1px;width:0;border-left:2px dashed #1a1a2655}
-.cover{position:absolute;top:6px;font-size:12px;font-weight:700;color:#0c8f63}
-.cval{text-align:right;font-size:15px;white-space:nowrap}
+/* Where the gym should be by now — a quiet reference, not a mark to read a value off */
+.cexp{position:absolute;top:2px;height:18px;width:2px;background:#1a1a2640;border-radius:1px}
+/* Projected finish. The surface ring keeps it legible where it overlaps the bar. */
+.cproj{position:absolute;top:5px;width:12px;height:12px;background:#1a1a26;transform:translateX(-50%) rotate(45deg);border-radius:2px;box-shadow:0 0 0 2px #fff}
+/* Target. A solid rule, one shade stronger than the grid — a threshold, not a gridline. */
+.c100{position:absolute;top:0;bottom:0;width:2px;background:#1a1a26;opacity:.5;border-radius:1px;transform:translateX(-1px)}
+.cover{position:absolute;top:5px;font-size:12px;font-weight:700;color:#0c8f63}
+.cval{text-align:right;font-size:15px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .cval b{font-weight:700;color:#1a1a26}
 .cval .proj{color:#999;font-weight:600;font-size:13px;margin-left:5px}
 .cval .none{color:#c0c0c8;font-weight:600;font-size:13px}
 /* On a phone the plot column is too narrow for a readable axis, so the bar
    drops onto its own full-width line under the gym name and its value. */
 @media(max-width:620px){
-  .crow{grid-template-columns:minmax(0,1fr) auto;row-gap:5px;padding:9px 0;border-bottom:1px solid #f7f7f9}
+  .crow{grid-template-columns:auto minmax(0,1fr) auto;row-gap:5px;padding:9px 0;border-bottom:1px solid #f7f7f9;border-radius:0}
   .crow:last-child{border-bottom:none}
-  .clabel{grid-column:1;grid-row:1}
-  .cval{grid-column:2;grid-row:1}
+  .crank{grid-column:1;grid-row:1}
+  .clabel{grid-column:2;grid-row:1;font-size:15px}
+  .cval{grid-column:3;grid-row:1;font-size:15px}
   .cplot{grid-column:1 / -1;grid-row:2}
-  .clabel{font-size:15px}
-  .cval{font-size:15px}
   .caxis{grid-template-columns:1fr}
-  .caxis > div:first-child,.caxis > div:last-child{display:none}
+  .caxis > div:not(.caxis-ticks){display:none}
 }
 select{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:8px 12px;font-size:16px;font-family:inherit;cursor:pointer}
 select:hover{border-color:#a0a0a8}
@@ -359,13 +370,14 @@ function chartScale(rows, period){
   return Math.min(SCALE_MAX_PCT, Math.ceil(max / 25) * 25);
 }
 
-function chartRow(g, period, scale){
+function chartRow(g, period, scale, rank, isLead){
   const b = g[period];
   const at = v => Math.min(100, Math.max(0, (v / scale) * 100));
 
   if (!b.targetSet){
     return `
       <div class="crow">
+        <div class="crank">–</div>
         <div class="clabel" title="${esc(g.gym)}">${esc(g.gym)}</div>
         <div class="cplot"><div class="ctrack"></div>${gridlines(scale)}</div>
         <div class="cval"><span class="none">No target</span></div>
@@ -380,7 +392,8 @@ function chartRow(g, period, scale){
     : `<span class="proj">→ ${pctText(b.projectedPct)}</span>`;
 
   return `
-    <div class="crow">
+    <div class="crow${isLead ? " lead" : ""}">
+      <div class="crank">${rank}</div>
       <div class="clabel" title="${esc(g.gym)}">${esc(g.gym)}</div>
       <div class="cplot">
         <div class="ctrack"></div>
@@ -414,16 +427,24 @@ function chartAxis(scale){
     const shift = v === 0 ? "0" : v === scale ? "-100%" : "-50%";
     ticks += `<span style="left:${(v / scale) * 100}%;transform:translateX(${shift})">${v}%</span>`;
   }
-  return `<div class="caxis"><div></div><div class="caxis-ticks">${ticks}</div><div></div></div>`;
+  return `<div class="caxis"><div></div><div></div><div class="caxis-ticks">${ticks}</div><div></div></div>`;
 }
 
 function renderChart(nodeId, title, sub, period){
   const scale = chartScale(data.gyms, period);
+
+  // Rank by where the run rate lands the gym, not by what's banked. Two days
+  // into a month everyone has banked ~5%, so ordering on that is noise; the
+  // projection separates who is going to make target from who isn't. Falls
+  // back to pace, then to banked, for the window where it's too early to project.
+  const rankValue = g => {
+    const b = g[period];
+    if (!b.targetSet) return -1;
+    return b.projectedPct ?? b.pacePct ?? b.achievedPct ?? -1;
+  };
   const rows = data.gyms.slice().sort((a, b) => {
-    const av = a[period].targetSet ? (a[period].achievedPct ?? -1) : -1;
-    const bv = b[period].targetSet ? (b[period].achievedPct ?? -1) : -1;
-    if (bv !== av) return bv - av;
-    return a.gym.localeCompare(b.gym);
+    const d = rankValue(b) - rankValue(a);
+    return d !== 0 ? d : a.gym.localeCompare(b.gym);
   });
 
   el(nodeId).innerHTML = `
@@ -438,7 +459,14 @@ function renderChart(nodeId, title, sub, period){
       <span><i class="lg-100"></i> Target</span>
     </div>
     ${chartAxis(scale)}
-    ${rows.map(g => chartRow(g, period, scale)).join("")}`;
+    ${(() => {
+      let rank = 0;
+      return rows.map(g => {
+        const ranked = g[period].targetSet;
+        if (ranked) rank++;
+        return chartRow(g, period, scale, ranked ? rank : null, ranked && rank === 1);
+      }).join("");
+    })()}`;
 }
 
 function renderCharts(){
@@ -458,7 +486,7 @@ function setView(v){
   if (v === "charts") renderCharts(); else renderList();
 }
 
-function heroCard(label, span, block, extraFoot){
+function heroCard(label, span, block, extraFoot, trend){
   const t = block.targetSet ? tone(block.pacePct != null ? block.pacePct
             : (block.expectedPct > 0 ? (block.achievedPct / block.expectedPct) * 100 : null)) : "none";
   const colour = { good:"#0c8f63", warn:"#a16207", bad:"#c8302d", none:"#a0a0a8" }[t];
@@ -482,6 +510,11 @@ function heroCard(label, span, block, extraFoot){
           </div>
         </div>` : ""}
       <div class="hero-foot">${extraFoot}</div>
+      ${trend && trend.length ? `
+        <div class="hero-spark">
+          ${sparkline(trend)}
+          <div class="hero-spark-note">Last 14 days vs daily target</div>
+        </div>` : ""}
     </div>`;
 }
 
@@ -547,7 +580,7 @@ function render(){
     : "<span>Set a daily target to track this</span>";
 
   el("hero").innerHTML =
-      heroCard("Today", dayLabel(cal.today) + " " + fmtDate(cal.today), scope.today, todayFoot)
+      heroCard("Today", dayLabel(cal.today) + " " + fmtDate(cal.today), scope.today, todayFoot, scope.trend)
     + heroCard("This week", `Mon ${fmtDate(cal.weekStart)} → Sun · day ${cal.weekDayIndex} of 7`, scope.week, weekFoot)
     + heroCard("This month", `${fmtMonth(cal.monthStart)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, scope.month, monthFoot);
 
