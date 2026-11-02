@@ -176,7 +176,6 @@ select:hover{border-color:#a0a0a8}
     </div>
     <div class="topbar-right">
       <span class="user-chip" id="userChip"></span>
-      <a class="navlink" id="navSales" href="/" style="display:none">Sales analytics</a>
       <a class="navlink" id="navAdmin" href="/admin.html" style="display:none">Targets &amp; logins</a>
       <button class="navlink" onclick="load()">↻ Refresh</button>
       <button class="navlink" onclick="signOut()">Sign out</button>
@@ -493,7 +492,6 @@ function render(){
 
   el("userChip").innerHTML = `<b>${esc(data.username)}</b> · ${data.role === "admin" ? "Admin" : "Gym"}`;
   if (me && me.role === "admin"){
-    el("navSales").style.display = "inline-block";
     el("navAdmin").style.display = "inline-block";
   }
 
