@@ -88,6 +88,65 @@ function sumRange(daily, gym, fromISO, toISOInclusive, basis){
 
 const pct = (actual, target) => (target > 0 ? (actual / target) * 100 : null);
 const round1 = v => (v == null ? null : Math.round(v * 10) / 10);
+const round2 = v => (v == null ? null : Math.round(v * 100) / 100);
+
+// ── Weekday shape ─────────────────────────────────────────────────────────
+// A gym doesn't trade evenly across the week — weekends run well below a
+// weekday. Splitting the weekly target into seven equal days therefore marks
+// every Saturday and Sunday short even in a week that finishes ahead, which
+// trains people to ignore the number.
+//
+// So the split follows each gym's own history instead: the share of a week's
+// takings that has landed on each weekday, measured over the trailing window
+// and applied to the weekly target. Nobody types anything, and the seven days
+// still add up to exactly the weekly target.
+const DOW_WINDOW_DAYS = 84;   // 12 weeks — enough samples to see a shape
+const DOW_MIN_SAMPLES = 4;    // per weekday, before trusting it over an even split
+
+// 0 = Monday … 6 = Sunday
+function dowIndex(iso){
+  const d = toDate(iso).getUTCDay();
+  return d === 0 ? 6 : d - 1;
+}
+
+// Median, not mean: one freak trading day or a one-off closure shouldn't
+// redefine what a normal Tuesday looks like.
+function median(values){
+  if (!values.length) return 0;
+  const s = values.slice().sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+// Seven fractions summing to 1, or null when there isn't enough settled
+// history to see a pattern — in which case the caller falls back to sevenths.
+// Today is excluded throughout: it's half-traded and would drag its weekday down.
+function weekdayShares(daily, gym, basis, today){
+  const buckets = [[], [], [], [], [], [], []];
+  for (let i = 1; i <= DOW_WINDOW_DAYS; i++){
+    const date = addDays(today, -i);
+    if (!daily[date]) continue;                  // no snapshot for that day at all
+    buckets[dowIndex(date)].push(cellValue(daily[date][gym], basis));
+  }
+  if (buckets.some(b => b.length < DOW_MIN_SAMPLES)) return null;
+
+  const medians = buckets.map(median);
+  const total = medians.reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return null;
+  return medians.map(m => m / total);
+}
+
+// The dollar target for one gym on one date, and how that compares with an
+// average day (1.0 = average, 0.7 = a typical quiet Sunday).
+function makeDayTarget(weekly, shares){
+  const even = weekly > 0 ? weekly / 7 : 0;
+  return {
+    weighted: !!shares,
+    average: even,
+    on: date => (shares ? weekly * shares[dowIndex(date)] : even),
+    factorOn: date => (shares ? shares[dowIndex(date)] * 7 : 1)
+  };
+}
 
 // One period (week or month) reduced to percentages.
 //   daysTotal        length of the period in days
@@ -137,9 +196,10 @@ function periodStats({ actual, target, dayTarget, daysTotal, daysElapsedWhole, t
   };
 }
 
-function buildGymRow({ gym, daily, targets, basis, cal }){
-  // t.daily is derived by lib/targets.js as weekly ÷ 7 — the weekly target
-  // spread evenly across Mon–Sun. It is never entered or stored.
+function buildGymRow({ gym, daily, targets, basis, cal, dayTarget }){
+  // t.daily is weekly ÷ 7 — the average day. `dayTarget.on(date)` is that
+  // week split by the gym's own weekday shape, which is what a single day
+  // is judged against. Both sum to the same week.
   const t = targets[gym] || { daily: 0, weekly: 0, monthly: 0 };
 
   const todayActual = sumRange(daily, gym, cal.today, cal.today, basis);
@@ -147,13 +207,16 @@ function buildGymRow({ gym, daily, targets, basis, cal }){
   const monthActual = sumRange(daily, gym, cal.monthStart, cal.today, basis);
   const yesterdayActual = sumRange(daily, gym, cal.yesterday, cal.yesterday, basis);
 
+  const todayTarget = dayTarget.on(cal.today);
+  const yesterdayTarget = dayTarget.on(cal.yesterday);
+
   const trend = [];
   for (let i = TREND_DAYS - 1; i >= 0; i--){
     const date = addDays(cal.today, -i);
     const actual = sumRange(daily, gym, date, date, basis);
     trend.push({
       date,
-      pct: round1(pct(actual, t.daily)),
+      pct: round1(pct(actual, dayTarget.on(date))),
       isToday: date === cal.today
     });
   }
@@ -162,14 +225,17 @@ function buildGymRow({ gym, daily, targets, basis, cal }){
     gym,
     hasAnyTarget: t.weekly > 0 || t.monthly > 0,
     today: {
-      targetSet: t.daily > 0,
-      achievedPct: round1(pct(todayActual, t.daily)),
+      targetSet: todayTarget > 0,
+      achievedPct: round1(pct(todayActual, todayTarget)),
       expectedPct: round1(cal.todayFraction * 100),
-      metAlready: t.daily > 0 && todayActual >= t.daily
+      metAlready: todayTarget > 0 && todayActual >= todayTarget,
+      // 1.0 = an average day for this gym; 0.7 = a typically quiet one
+      dayFactor: round2(dayTarget.factorOn(cal.today)),
+      weighted: dayTarget.weighted
     },
     yesterday: {
-      targetSet: t.daily > 0,
-      achievedPct: round1(pct(yesterdayActual, t.daily))
+      targetSet: yesterdayTarget > 0,
+      achievedPct: round1(pct(yesterdayActual, yesterdayTarget))
     },
     week: periodStats({
       actual: weekActual, target: t.weekly, dayTarget: t.daily,
@@ -225,7 +291,19 @@ module.exports = async function handler(req, res){
   const daily = snapshot.daily;
   const gyms = scopeGyms(session, GYM_LABELS);
 
-  const rows = gyms.map(gym => buildGymRow({ gym, daily, targets: targetSheet.gyms, basis, cal }));
+  // Each gym's weekday shape, measured once and reused for its own row and
+  // for the roll-up below.
+  const dayTargets = {};
+  for (const gym of gyms){
+    const weekly = (targetSheet.gyms[gym] || {}).weekly || 0;
+    const shares = weekly > 0 ? weekdayShares(daily, gym, basis, cal.today) : null;
+    dayTargets[gym] = makeDayTarget(weekly, shares);
+  }
+  const groupDayTarget = date => gyms.reduce((sum, gym) => sum + dayTargets[gym].on(date), 0);
+
+  const rows = gyms.map(gym => buildGymRow({
+    gym, daily, targets: targetSheet.gyms, basis, cal, dayTarget: dayTargets[gym]
+  }));
 
   // Roll-up: sum the actuals and the targets, then take the percentage, so a
   // big gym carries more weight than a small one.
@@ -252,24 +330,29 @@ module.exports = async function handler(req, res){
     for (const gym of gyms) actual += sumRange(daily, gym, date, date, basis);
     groupTrend.push({
       date,
-      pct: round1(pct(actual, targetTotals.daily)),
+      pct: round1(pct(actual, groupDayTarget(date))),
       isToday: date === cal.today
     });
   }
+
+  const groupTodayTarget = groupDayTarget(cal.today);
+  const groupYesterdayTarget = groupDayTarget(cal.yesterday);
 
   const group = {
     gymCount: gyms.length,
     gymsWithTargets: rows.filter(r => r.hasAnyTarget).length,
     trend: groupTrend,
     today: {
-      targetSet: targetTotals.daily > 0,
-      achievedPct: round1(pct(totals.today, targetTotals.daily)),
+      targetSet: groupTodayTarget > 0,
+      achievedPct: round1(pct(totals.today, groupTodayTarget)),
       expectedPct: round1(todayFraction * 100),
-      metAlready: targetTotals.daily > 0 && totals.today >= targetTotals.daily
+      metAlready: groupTodayTarget > 0 && totals.today >= groupTodayTarget,
+      dayFactor: round2(targetTotals.daily > 0 ? groupTodayTarget / targetTotals.daily : 1),
+      weighted: gyms.some(g => dayTargets[g].weighted)
     },
     yesterday: {
-      targetSet: targetTotals.daily > 0,
-      achievedPct: round1(pct(totals.yesterday, targetTotals.daily))
+      targetSet: groupYesterdayTarget > 0,
+      achievedPct: round1(pct(totals.yesterday, groupYesterdayTarget))
     },
     week: periodStats({
       actual: totals.week, target: targetTotals.weekly, dayTarget: targetTotals.daily,
