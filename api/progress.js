@@ -24,13 +24,13 @@ const TREND_DAYS = 14;
 const TRADING_START_HOUR = 6;
 const TRADING_END_HOUR = 22;
 
-// Projecting a whole week off a partial Monday is noise, not a forecast: a
-// morning's takings divided by a third of a day extrapolates to a run rate
-// several times reality. Wait for one full day in the period before quoting a
-// run rate or a projection; until then the UI shows "too early" and managers
-// go off today's own percentage and the required-per-day figure, which are
-// both sound from the first hour.
-const MIN_ELAPSED_DAYS_TO_PROJECT = 1;
+// How much of a period's target must have come due before a projection is
+// worth quoting. A share of target, not a count of days: five percent of a
+// week is reached partway through Monday for most gyms, and sooner for one
+// whose week front-loads onto it. Below that the sample is too thin and the
+// UI says "too early" — today's own percentage and the required-per-day
+// figure are both sound from the first hour and carry the gap.
+const MIN_EXPECTED_SHARE = 0.05;
 
 const ADELAIDE = "Australia/Adelaide";
 const DATE_FMT = new Intl.DateTimeFormat("en-CA", {
@@ -162,21 +162,50 @@ function makeDayTarget(weekly, shares){
   };
 }
 
+// What share of a period's target has come due by now, given the gym's
+// weekday shape: the elapsed days' weight over the whole period's weight,
+// counting today by how much of it has traded. Works for a week and a month
+// alike, because it is a ratio of weights rather than of dollars — the month's
+// target is its own figure, not seven-day arithmetic.
+function elapsedTargetShare(dayTarget, fromISO, toISOInclusive, cal){
+  let elapsed = 0, total = 0;
+  for (let d = fromISO; d <= toISOInclusive; d = addDays(d, 1)){
+    const w = dayTarget.factorOn(d);
+    total += w;
+    if (d < cal.today) elapsed += w;
+    else if (d === cal.today) elapsed += w * cal.todayFraction;
+  }
+  return total > 0 ? elapsed / total : 0;
+}
+
 // One period (week or month) reduced to percentages.
 //   daysTotal        length of the period in days
 //   daysElapsedWhole 1-based index of today within the period
 //   todayFraction    how much of today has traded, 0–1
-function periodStats({ actual, target, dayTarget, daysTotal, daysElapsedWhole, todayFraction }){
-  const elapsed = (daysElapsedWhole - 1) + todayFraction;
+// `expectedSoFar` is how much of the period's target has come due by now —
+// the completed days' targets plus today's, pro-rated by how much of today has
+// traded. Because the daily targets follow the gym's weekday shape, this is
+// what makes a Monday-only week comparable: a gym that front-loads onto
+// Monday has more of its week due by Monday night than one that trades at
+// the weekend, and gets judged accordingly.
+function periodStats({ actual, target, expectedSoFar, daysTotal, daysElapsedWhole }){
   const daysRemainingWhole = daysTotal - daysElapsedWhole;
 
   const achievedPct = pct(actual, target);
-  const expectedPct = daysTotal > 0 ? (elapsed / daysTotal) * 100 : null;
-  const pacePct = achievedPct != null && expectedPct > 0 ? (achievedPct / expectedPct) * 100 : null;
+  const expectedPct = pct(expectedSoFar, target);
+  const pacePct = expectedSoFar > 0 ? (actual / expectedSoFar) * 100 : null;
 
-  const canProject = elapsed >= MIN_ELAPSED_DAYS_TO_PROJECT;
-  const runRateDaily = canProject ? actual / elapsed : null;
-  const projectedPct = canProject ? pct(runRateDaily * daysTotal, target) : null;
+  // Where the period lands if this level of performance holds. Projecting
+  // against the shape rather than against elapsed days is what lets this work
+  // on a Monday: the old flat version divided by a fraction of a day and
+  // produced figures in the hundreds of percent, so it had to be suppressed
+  // until a full day had passed — which left the week chart empty all Monday.
+  //
+  // The gate is now a share of the period's target rather than a count of
+  // days, so it clears as soon as enough of the week is genuinely due.
+  const expectedShare = target > 0 ? expectedSoFar / target : 0;
+  const canProject = expectedShare >= MIN_EXPECTED_SHARE;
+  const projectedPct = canProject ? pacePct : null;
 
   // The bar a gym has to clear from here on. This is the one figure quoted in
   // dollars — it's what a manager acts on, and a percentage of a target day
@@ -188,7 +217,7 @@ function periodStats({ actual, target, dayTarget, daysTotal, daysElapsedWhole, t
   // multiplies "$86 a day × 7 days" gets back the shortfall. Using the fraction
   // of today still to run would be marginally more precise and would not
   // multiply back, which is a bad trade for a number people read at a glance.
-  const effectiveDayTarget = dayTarget > 0 ? dayTarget : (target > 0 ? target / daysTotal : 0);
+  const effectiveDayTarget = target > 0 ? target / daysTotal : 0;
   const shortfall = Math.max(0, target - actual);
   const daysLeftInclToday = Math.max(1, daysTotal - daysElapsedWhole + 1);
   const requiredDaily = shortfall / daysLeftInclToday;
@@ -199,7 +228,6 @@ function periodStats({ actual, target, dayTarget, daysTotal, daysElapsedWhole, t
     expectedPct: round1(expectedPct),
     pacePct: round1(pacePct),
     projectedPct: round1(projectedPct),
-    runRatePctOfDaily: round1(runRateDaily != null ? pct(runRateDaily, effectiveDayTarget) : null),
     requiredPerDay: Math.round(requiredDaily),
     requiredPctOfDaily: round1(pct(requiredDaily, effectiveDayTarget)),
     metAlready: target > 0 && actual >= target,
@@ -223,6 +251,7 @@ function buildGymRow({ gym, daily, targets, basis, cal, dayTarget }){
 
   const todayTarget = dayTarget.on(cal.today);
   const yesterdayTarget = dayTarget.on(cal.yesterday);
+
 
   const trend = [];
   for (let i = TREND_DAYS - 1; i >= 0; i--){
@@ -252,12 +281,14 @@ function buildGymRow({ gym, daily, targets, basis, cal, dayTarget }){
       achievedPct: round1(pct(yesterdayActual, yesterdayTarget))
     },
     week: periodStats({
-      actual: weekActual, target: t.weekly, dayTarget: t.daily,
-      daysTotal: 7, daysElapsedWhole: cal.weekDayIndex, todayFraction: cal.todayFraction
+      actual: weekActual, target: t.weekly,
+      expectedSoFar: t.weekly * elapsedTargetShare(dayTarget, cal.weekStart, cal.weekEnd, cal),
+      daysTotal: 7, daysElapsedWhole: cal.weekDayIndex
     }),
     month: periodStats({
-      actual: monthActual, target: t.monthly, dayTarget: t.daily,
-      daysTotal: cal.daysInMonth, daysElapsedWhole: cal.monthDayIndex, todayFraction: cal.todayFraction
+      actual: monthActual, target: t.monthly,
+      expectedSoFar: t.monthly * elapsedTargetShare(dayTarget, cal.monthStart, cal.monthEnd, cal),
+      daysTotal: cal.daysInMonth, daysElapsedWhole: cal.monthDayIndex
     }),
     trend
   };
@@ -295,8 +326,10 @@ module.exports = async function handler(req, res){
     yesterday: addDays(today, -1),
     todayFraction,
     weekStart: addDays(today, -(weekDayIndex - 1)),
+    weekEnd: addDays(today, 7 - weekDayIndex),
     weekDayIndex,
     monthStart: `${year}-${String(month).padStart(2, "0")}-01`,
+    monthEnd: `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`,
     monthDayIndex: Number(today.slice(8, 10)),
     daysInMonth: new Date(Date.UTC(year, month, 0)).getUTCDate()
   };
@@ -368,13 +401,21 @@ module.exports = async function handler(req, res){
       targetSet: groupYesterdayTarget > 0,
       achievedPct: round1(pct(totals.yesterday, groupYesterdayTarget))
     },
+    // Each gym's own share of its own target, summed — not an average of
+    // shares, so a big gym's week counts for more than a small one's.
     week: periodStats({
-      actual: totals.week, target: targetTotals.weekly, dayTarget: targetTotals.daily,
-      daysTotal: 7, daysElapsedWhole: cal.weekDayIndex, todayFraction
+      actual: totals.week, target: targetTotals.weekly,
+      expectedSoFar: gyms.reduce((s, gym) => s +
+        ((targetSheet.gyms[gym] || {}).weekly || 0) *
+        elapsedTargetShare(dayTargets[gym], cal.weekStart, cal.weekEnd, cal), 0),
+      daysTotal: 7, daysElapsedWhole: cal.weekDayIndex
     }),
     month: periodStats({
-      actual: totals.month, target: targetTotals.monthly, dayTarget: targetTotals.daily,
-      daysTotal: cal.daysInMonth, daysElapsedWhole: cal.monthDayIndex, todayFraction
+      actual: totals.month, target: targetTotals.monthly,
+      expectedSoFar: gyms.reduce((s, gym) => s +
+        ((targetSheet.gyms[gym] || {}).monthly || 0) *
+        elapsedTargetShare(dayTargets[gym], cal.monthStart, cal.monthEnd, cal), 0),
+      daysTotal: cal.daysInMonth, daysElapsedWhole: cal.monthDayIndex
     })
   };
 
