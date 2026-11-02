@@ -79,33 +79,10 @@ const topCat = li => {
   return TOP_CATEGORIES.includes(pt) ? pt : null;
 };
 
-// Map: Shopify location name (matched by substring, case-insensitive) →
-// the dashboard label that should appear. Online orders or in-store orders
-// at locations not in this map are skipped.
-const GYM_LOCATION_MAP = [
-  ["flinders park", "Flinders Park, SA"],
-  ["tranmere",      "Tranmere, SA"],
-  ["midvale",       "Midvale, WA"],
-  ["malaga",        "Malaga, WA"],
-  ["alberton",      "Alberton, SA"],
-  ["hackham",       "Hackham, SA"],
-  ["wanneroo",      "Wanneroo, WA"],
-  ["maddington",    "Maddington, WA"],
-  ["munno para",    "Munno Para, SA"],
-  ["rockingham",    "Rockingham, WA"],
-  ["mandurah",      "Mandurah, WA"],
-  ["beckenham",     "Beckenham, WA"],
-  // Trades as "The Lodge"; Cin7/Shopify still carry the site as Brahma
-  // Lodge, so match on "lodge" to cover the name under either spelling.
-  ["lodge",         "The Lodge, SA"],
-];
-function mapLocation(name){
-  const lower = (name || "").toLowerCase();
-  for (const [needle, label] of GYM_LOCATION_MAP){
-    if (lower.includes(needle)) return label;
-  }
-  return null;
-}
+// The gym roster lives in _gyms.js so the targets and progress endpoints
+// stay in step with what the cron aggregates.
+const { mapLocation } = require("./_gyms");
+const { getSession } = require("./_auth");
 
 function shopifyShop(){
   const s = process.env.SHOPIFY_STORE || "";
@@ -478,15 +455,15 @@ async function queueNextBulk(){
 module.exports = async function handler(req, res){
   // Two callers:
   //   1. Vercel cron — sends `Authorization: Bearer ${CRON_SECRET}`.
-  //   2. Dashboard "Refresh data" button — hits `?manual=1` from the browser.
-  //      Manual is unauthenticated by design (internal dashboard, no user
-  //      auth layer), but Shopify's per-app one-bulk-at-a-time guarantee
-  //      means spam triggers can't stack — they just adopt the running op.
+  //   2. Dashboard "Refresh data" button — hits `?manual=1` from the browser,
+  //      which now requires an admin session. This route sits outside the
+  //      edge middleware so cron can reach it, so the check happens here.
   const expected = process.env.CRON_SECRET;
   const auth = req.headers.authorization || "";
   const manual = /[?&]manual=1\b/.test(req.url || "");
   const authed = expected && auth === `Bearer ${expected}`;
-  if (!authed && !manual){
+  const session = manual ? getSession(req) : null;
+  if (!authed && !(manual && session && session.role === "admin")){
     return res.status(401).json({ error: "Unauthorized" });
   }
 

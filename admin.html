@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ryderwear Gyms — Targets &amp; Logins</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;color:#0f0f1a;padding:24px;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #00000010;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand-logo{height:56px;width:auto;display:block;filter:brightness(0)}
+.brand-divider{width:1px;height:36px;background:#00000018;margin:0 4px}
+h1{font-size:27px;font-weight:600;color:#1a1a26;letter-spacing:-.01em}
+.sub{font-size:18px;color:#777;font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.user-chip{font-size:15px;color:#555;background:#f4f4f6;border:1px solid #ececef;border-radius:20px;padding:6px 14px;font-weight:600}
+.user-chip b{color:#1a1a26}
+a.navlink,button.navlink{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:8px 14px;font-size:16px;font-family:inherit;font-weight:500;cursor:pointer;text-decoration:none;display:inline-block;transition:background .15s}
+a.navlink:hover,button.navlink:hover{background:#f4f4f6}
+
+.tabs{display:flex;gap:8px;margin-bottom:22px}
+.tab{font-size:17px;font-weight:600;padding:9px 18px;border-radius:20px;border:1px solid #d4d4d8;background:#fff;color:#555;cursor:pointer;font-family:inherit}
+.tab.active{background:#1a1a26;border-color:#1a1a26;color:#fff}
+.tab:hover:not(.active){background:#f4f4f6}
+.panel{display:none}
+.panel.active{display:block}
+
+.card{background:#fff;border:1px solid #ececef;border-radius:16px;padding:24px;box-shadow:0 1px 2px #0000000a;margin-bottom:18px}
+.card-title{font-size:20px;font-weight:600;color:#1a1a26;margin-bottom:6px}
+.card-note{font-size:15px;color:#888;margin-bottom:18px;line-height:1.5}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.09em;font-weight:700;padding:0 10px 10px;border-bottom:1px solid #ececef}
+th.num,td.num{text-align:right}
+td{padding:9px 10px;border-bottom:1px solid #f4f4f6;font-size:16px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.gym-cell{font-weight:600;color:#1a1a26;white-space:nowrap}
+input[type=number],input[type=text],input[type=password],select{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:9px 11px;font-size:16px;font-family:inherit;outline:none;transition:border-color .15s;width:100%}
+input:focus,select:focus{border-color:#6366f1}
+td input[type=number]{text-align:right;max-width:150px}
+.hint{font-size:13px;color:#a0a0a8;white-space:nowrap}
+.hint.warn{color:#a16207}
+
+.actions{display:flex;gap:10px;align-items:center;margin-top:20px;flex-wrap:wrap}
+button.primary{background:#1a1a26;color:#fff;border:1px solid #1a1a26;border-radius:8px;padding:11px 22px;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;transition:background .15s}
+button.primary:hover:not(:disabled){background:#0f0f1a}
+button.primary:disabled{opacity:.55;cursor:not-allowed}
+button.ghost{background:#fff;border:1px solid #d4d4d8;color:#555;border-radius:8px;padding:11px 18px;font-size:16px;font-family:inherit;cursor:pointer}
+button.ghost:hover{background:#f4f4f6}
+button.danger{background:#fff;border:1px solid #efc0c0;color:#c8302d;border-radius:8px;padding:7px 13px;font-size:15px;font-family:inherit;cursor:pointer}
+button.danger:hover{background:#fff5f5}
+.status{font-size:16px;font-weight:600}
+.status.ok{color:#0c8f63}
+.status.err{color:#c8302d}
+
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+.gym-picker{border:1px solid #ececef;border-radius:10px;padding:14px;max-height:230px;overflow:auto;background:#fcfcfd}
+.gym-picker label{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:500;text-transform:none;letter-spacing:0;color:#1a1a26;margin-bottom:9px;cursor:pointer}
+.gym-picker input[type=checkbox]{width:17px;height:17px;accent-color:#6366f1;cursor:pointer}
+.gym-picker .all-row{padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid #ececef}
+.gym-picker .all-row label{font-weight:700}
+
+.role-pill{font-size:13px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.role-pill.admin{background:#6366f11f;color:#4f46e5}
+.role-pill.gym{background:#10b9811f;color:#0c8f63}
+.scope-text{font-size:14px;color:#777}
+
+.notice{background:#f4f4ff;border:1px solid #6366f140;border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:16px;color:#4a4a8a;line-height:1.55}
+.notice.warn{background:#fffaf0;border-color:#f59e0b55;color:#92610a}
+
+.spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:14px}
+.spin{width:40px;height:40px;border:3px solid #ececef;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#app{display:none}
+@media(max-width:700px){body{padding:16px}td,th{padding:7px 5px;font-size:15px}}
+</style>
+</head>
+<body>
+
+<div id="loading" class="spinner">
+  <div class="spin"></div>
+  <div style="color:#1a1a26;font-size:20px">Loading…</div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <img src="/logo.png" alt="Ryderwear Gym" class="brand-logo" onerror="this.style.display='none'">
+      <div class="brand-divider"></div>
+      <div>
+        <h1>Targets &amp; Logins</h1>
+        <div class="sub">Admin</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="user-chip" id="userChip"></span>
+      <a class="navlink" href="/capacity.html">Target tracking</a>
+      <a class="navlink" href="/">Sales analytics</a>
+      <button class="navlink" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div id="bootstrapNotice"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-panel="targets" onclick="showTab('targets')">Targets</button>
+    <button class="tab" data-panel="logins" onclick="showTab('logins')">Logins</button>
+  </div>
+
+  <!-- ── Targets ────────────────────────────────────────────────────── -->
+  <div class="panel active" id="panel-targets">
+    <div class="card">
+      <div class="card-title">What counts toward target</div>
+      <div class="card-note">
+        Applies to every gym and to the whole tracking dashboard. Change it and the
+        percentages are recalculated against the same targets.
+      </div>
+      <select id="basisSel" style="max-width:420px">
+        <option value="total">All in-store sales — apparel, supplements, drinks, food</option>
+        <option value="apparel">Apparel only — matches "ex gym products" on the sales dashboard</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Sales targets by gym</div>
+      <div class="card-note">
+        Enter targets in dollars. Gym logins never see these figures or their takings
+        to date — the tracking dashboard shows percentage of target, plus the dollars
+        still needed per day to land the week and the month. Leave a field at 0 to
+        leave that period untracked.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Gym</th>
+            <th class="num">Daily target</th>
+            <th class="num">Weekly target</th>
+            <th class="num">Monthly target</th>
+            <th>Consistency</th>
+          </tr>
+        </thead>
+        <tbody id="targetRows"></tbody>
+      </table>
+      <div class="actions">
+        <button class="primary" id="saveTargets" onclick="saveTargets()">Save targets</button>
+        <button class="ghost" onclick="loadTargets()">Discard changes</button>
+        <span class="status" id="targetStatus"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Logins ─────────────────────────────────────────────────────── -->
+  <div class="panel" id="panel-logins">
+    <div class="card">
+      <div class="card-title" id="userFormTitle">Add a login</div>
+      <div class="card-note">
+        <b>Admin</b> accounts see everything: the $ sales dashboard, these targets and
+        this login list. <b>Gym</b> accounts only ever reach the target tracking page,
+        scoped to the gyms you tick, where the only dollar figure shown is what's still
+        needed per day. Tick <b>All gyms</b> for a single shared login that sees every site.
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label for="uName">Username</label>
+          <input type="text" id="uName" autocapitalize="none" spellcheck="false" placeholder="e.g. malaga">
+        </div>
+        <div>
+          <label for="uPass">Password</label>
+          <input type="password" id="uPass" autocomplete="new-password" placeholder="At least 8 characters">
+          <div class="hint" id="passHint" style="margin-top:6px"></div>
+        </div>
+        <div>
+          <label for="uRole">Role</label>
+          <select id="uRole" onchange="onRoleChange()">
+            <option value="gym">Gym — tracking page only</option>
+            <option value="admin">Admin — full access</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="gymPickerWrap">
+        <label>Gyms this login can see</label>
+        <div class="gym-picker" id="gymPicker"></div>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="saveUser" onclick="saveUser()">Add login</button>
+        <button class="ghost" id="cancelEdit" style="display:none" onclick="resetUserForm()">Cancel</button>
+        <span class="status" id="userStatus"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Existing logins</div>
+      <div class="card-note">Passwords can't be read back — use Edit to set a new one.</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Sees</th>
+            <th>Last sign-in</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="userRows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let roster = [];
+let targets = {};
+let users = [];
+let me = null;
+let editingUserId = null;
+
+const el = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => (
+  { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]
+));
+const money = v => "$" + Number(v || 0).toLocaleString("en-AU", { maximumFractionDigits: 0 });
+
+function flash(node, message, ok){
+  node.textContent = message;
+  node.className = "status " + (ok ? "ok" : "err");
+  if (ok) setTimeout(() => { if (node.textContent === message) node.textContent = ""; }, 4000);
+}
+
+function showTab(name){
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.panel === name));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+}
+
+function daysInThisMonth(){
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+}
+
+// ── Targets ───────────────────────────────────────────────────────────────
+function renderTargetRows(){
+  el("targetRows").innerHTML = roster.map(gym => {
+    const t = targets[gym] || { daily: 0, weekly: 0, monthly: 0 };
+    return `
+      <tr data-gym="${esc(gym)}">
+        <td class="gym-cell">${esc(gym)}</td>
+        <td class="num"><input type="number" min="0" step="any" data-field="daily"   value="${t.daily   || ""}" oninput="updateHint(this)"></td>
+        <td class="num"><input type="number" min="0" step="any" data-field="weekly"  value="${t.weekly  || ""}" oninput="updateHint(this)"></td>
+        <td class="num"><input type="number" min="0" step="any" data-field="monthly" value="${t.monthly || ""}" oninput="updateHint(this)"></td>
+        <td class="hint" data-role="hint"></td>
+      </tr>`;
+  }).join("");
+  document.querySelectorAll('#targetRows input[data-field="daily"]').forEach(updateHint);
+}
+
+// Flags a daily target that doesn't line up with the weekly/monthly ones. It's
+// only a nudge — the three are entered independently on purpose.
+function updateHint(input){
+  const row = input.closest("tr");
+  const read = f => Number(row.querySelector(`input[data-field="${f}"]`).value) || 0;
+  const daily = read("daily"), weekly = read("weekly"), monthly = read("monthly");
+  const cell = row.querySelector('[data-role="hint"]');
+  const dim = daysInThisMonth();
+
+  if (!daily && !weekly && !monthly){ cell.textContent = "Not tracked"; cell.className = "hint"; return; }
+
+  const notes = [];
+  if (daily && weekly){
+    const implied = daily * 7;
+    const drift = Math.round((weekly / implied - 1) * 100);
+    if (Math.abs(drift) >= 10) notes.push(`weekly is ${drift > 0 ? "+" : ""}${drift}% vs daily×7`);
+  }
+  if (daily && monthly){
+    const implied = daily * dim;
+    const drift = Math.round((monthly / implied - 1) * 100);
+    if (Math.abs(drift) >= 10) notes.push(`monthly is ${drift > 0 ? "+" : ""}${drift}% vs daily×${dim}`);
+  }
+  if (notes.length){ cell.textContent = notes.join(" · "); cell.className = "hint warn"; }
+  else { cell.textContent = daily ? `daily×7 = ${money(daily * 7)}` : "ok"; cell.className = "hint"; }
+}
+
+async function loadTargets(){
+  const r = await fetch("/api/targets", { cache: "no-store" });
+  if (r.status === 401){ window.location.href = "/login.html"; return; }
+  if (r.status === 403){ window.location.href = "/capacity.html"; return; }
+  if (!r.ok){
+    const body = await r.json().catch(() => ({}));
+    flash(el("targetStatus"), body.error || `Failed to load (${r.status})`, false);
+    return;
+  }
+  const body = await r.json();
+  roster = body.roster || [];
+  targets = body.gyms || {};
+  el("basisSel").value = body.basis || "total";
+  renderTargetRows();
+  renderGymPicker();
+}
+
+async function saveTargets(){
+  const btn = el("saveTargets");
+  btn.disabled = true;
+  const prev = btn.textContent;
+  btn.textContent = "Saving…";
+
+  const gyms = {};
+  document.querySelectorAll("#targetRows tr").forEach(row => {
+    const gym = row.dataset.gym;
+    gyms[gym] = {
+      daily:   Number(row.querySelector('input[data-field="daily"]').value)   || 0,
+      weekly:  Number(row.querySelector('input[data-field="weekly"]').value)  || 0,
+      monthly: Number(row.querySelector('input[data-field="monthly"]').value) || 0
+    };
+  });
+
+  try {
+    const r = await fetch("/api/targets", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ gyms, basis: el("basisSel").value })
+    });
+    const body = await r.json().catch(() => ({}));
+    if (r.ok){
+      targets = body.gyms || gyms;
+      flash(el("targetStatus"), "Targets saved", true);
+    } else {
+      flash(el("targetStatus"), body.error || `Save failed (${r.status})`, false);
+    }
+  } catch (e) {
+    flash(el("targetStatus"), e.message || "Network error", false);
+  }
+  btn.disabled = false;
+  btn.textContent = prev;
+}
+
+// ── Logins ────────────────────────────────────────────────────────────────
+function renderGymPicker(){
+  el("gymPicker").innerHTML = `
+    <div class="all-row">
+      <label><input type="checkbox" id="gymAll" onchange="onAllGymsChange()"> All gyms</label>
+    </div>
+    ` + roster.map(g => `
+      <label><input type="checkbox" class="gym-check" value="${esc(g)}"> ${esc(g)}</label>
+    `).join("");
+}
+
+function onAllGymsChange(){
+  const all = el("gymAll").checked;
+  document.querySelectorAll(".gym-check").forEach(c => { c.disabled = all; if (all) c.checked = false; });
+}
+
+function onRoleChange(){
+  const isAdmin = el("uRole").value === "admin";
+  el("gymPickerWrap").style.display = isAdmin ? "none" : "";
+}
+
+function selectedGyms(){
+  if (el("uRole").value === "admin") return "*";
+  if (el("gymAll").checked) return "*";
+  return [...document.querySelectorAll(".gym-check")].filter(c => c.checked).map(c => c.value);
+}
+
+function describeScope(u){
+  if (u.role === "admin") return "Everything";
+  if (u.gyms === "*") return "All gyms";
+  const list = Array.isArray(u.gyms) ? u.gyms : [];
+  if (list.length === 0) return "— nothing";
+  if (list.length <= 2) return list.join(", ");
+  return `${list.length} gyms`;
+}
+
+function renderUsers(){
+  if (users.length === 0){
+    el("userRows").innerHTML = '<tr><td colspan="5" style="color:#999;padding:18px 10px">No logins yet.</td></tr>';
+    return;
+  }
+  el("userRows").innerHTML = users.map(u => `
+    <tr>
+      <td style="font-weight:600">${esc(u.username)}</td>
+      <td><span class="role-pill ${esc(u.role)}">${u.role === "admin" ? "Admin" : "Gym"}</span></td>
+      <td class="scope-text" title="${esc(Array.isArray(u.gyms) ? u.gyms.join(", ") : "All gyms")}">${esc(describeScope(u))}</td>
+      <td class="scope-text">${u.lastLogin ? new Date(u.lastLogin).toLocaleDateString("en-AU") : "never"}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="ghost" style="padding:7px 13px;font-size:15px" onclick="editUser('${esc(u.id)}')">Edit</button>
+        <button class="danger" onclick="deleteUser('${esc(u.id)}','${esc(u.username)}')">Delete</button>
+      </td>
+    </tr>`).join("");
+}
+
+function editUser(id){
+  const u = users.find(x => x.id === id);
+  if (!u) return;
+  editingUserId = id;
+  el("userFormTitle").textContent = `Edit "${u.username}"`;
+  el("uName").value = u.username;
+  el("uPass").value = "";
+  el("passHint").textContent = "Leave blank to keep the current password";
+  el("uRole").value = u.role;
+  onRoleChange();
+  el("gymAll").checked = u.gyms === "*";
+  onAllGymsChange();
+  if (Array.isArray(u.gyms)){
+    document.querySelectorAll(".gym-check").forEach(c => { c.checked = u.gyms.includes(c.value); });
+  }
+  el("saveUser").textContent = "Save changes";
+  el("cancelEdit").style.display = "";
+  showTab("logins");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function resetUserForm(){
+  editingUserId = null;
+  el("userFormTitle").textContent = "Add a login";
+  el("uName").value = "";
+  el("uPass").value = "";
+  el("passHint").textContent = "";
+  el("uRole").value = "gym";
+  onRoleChange();
+  el("gymAll").checked = false;
+  onAllGymsChange();
+  document.querySelectorAll(".gym-check").forEach(c => { c.checked = false; });
+  el("saveUser").textContent = "Add login";
+  el("cancelEdit").style.display = "none";
+  el("userStatus").textContent = "";
+}
+
+async function saveUser(){
+  const btn = el("saveUser");
+  btn.disabled = true;
+  const prev = btn.textContent;
+  btn.textContent = "Saving…";
+
+  const payload = {
+    id: editingUserId || undefined,
+    username: el("uName").value.trim().toLowerCase(),
+    role: el("uRole").value,
+    gyms: selectedGyms()
+  };
+  const pass = el("uPass").value;
+  if (pass) payload.password = pass;
+
+  try {
+    const r = await fetch("/api/users", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const body = await r.json().catch(() => ({}));
+    if (r.ok){
+      users = body.users || users;
+      renderUsers();
+      const name = payload.username;
+      resetUserForm();
+      flash(el("userStatus"), `Saved "${name}"`, true);
+      await refreshBootstrapNotice();
+    } else {
+      flash(el("userStatus"), body.error || `Save failed (${r.status})`, false);
+    }
+  } catch (e) {
+    flash(el("userStatus"), e.message || "Network error", false);
+  }
+  btn.disabled = false;
+  btn.textContent = prev;
+}
+
+async function deleteUser(id, username){
+  if (!confirm(`Delete the login "${username}"? They won't be able to sign in again.`)) return;
+  try {
+    const r = await fetch(`/api/users?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    const body = await r.json().catch(() => ({}));
+    if (r.ok){
+      users = body.users || [];
+      renderUsers();
+      if (editingUserId === id) resetUserForm();
+      flash(el("userStatus"), `Deleted "${username}"`, true);
+    } else {
+      flash(el("userStatus"), body.error || `Delete failed (${r.status})`, false);
+    }
+  } catch (e) {
+    flash(el("userStatus"), e.message || "Network error", false);
+  }
+}
+
+async function loadUsers(){
+  const r = await fetch("/api/users", { cache: "no-store" });
+  if (r.status === 401){ window.location.href = "/login.html"; return; }
+  if (r.status === 403){ window.location.href = "/capacity.html"; return; }
+  if (!r.ok) return;
+  const body = await r.json();
+  users = body.users || [];
+  if (!roster.length){
+    roster = body.gyms || [];
+    renderGymPicker();
+  }
+  renderUsers();
+}
+
+async function refreshBootstrapNotice(){
+  const r = await fetch("/api/me", { cache: "no-store" });
+  if (!r.ok) return;
+  me = await r.json();
+  el("userChip").innerHTML = `<b>${esc(me.username)}</b> · Admin`;
+  el("bootstrapNotice").innerHTML = me.bootstrap ? `
+    <div class="notice warn">
+      <b>You're signed in with the bootstrap password.</b>
+      It stops working the moment the first real account is created. Add your own
+      admin login below (plus the other two admins), then sign back in as that account.
+    </div>` : "";
+}
+
+async function signOut(){
+  await fetch("/api/logout", { method: "POST" }).catch(() => {});
+  window.location.href = "/login.html";
+}
+
+(async function init(){
+  await Promise.all([refreshBootstrapNotice(), loadTargets(), loadUsers()]);
+  onRoleChange();
+  el("loading").style.display = "none";
+  el("app").style.display = "block";
+})();
+</script>
+</body>
+</html>
