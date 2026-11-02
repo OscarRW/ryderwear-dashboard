@@ -277,6 +277,21 @@ function timeAgo(ts){
   return Math.round(hrs / 24) + "d ago";
 }
 
+// The API speaks ISO (YYYY-MM-DD) because it sorts and compares cleanly;
+// everything shown to a person is Australian day-first.
+function fmtDate(iso){
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function fmtMonth(iso){
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-AU", {
+    month: "long", year: "numeric", timeZone: "UTC"
+  });
+}
+
 function dayLabel(iso){
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-AU", {
@@ -317,7 +332,7 @@ function sparkline(trend){
     const barH = Math.max(2, scaled * h);
     const fill = d.pct >= 100 ? "#10b981" : d.pct >= 90 ? "#f59e0b" : "#ef4444";
     const opacity = d.isToday ? 1 : 0.75;
-    return `<rect x="${x.toFixed(2)}" y="${(h - barH).toFixed(2)}" width="${barW.toFixed(2)}" height="${barH.toFixed(2)}" rx="1" fill="${fill}" opacity="${opacity}"><title>${esc(d.date)} — ${pctText(d.pct)} of daily target</title></rect>`;
+    return `<rect x="${x.toFixed(2)}" y="${(h - barH).toFixed(2)}" width="${barW.toFixed(2)}" height="${barH.toFixed(2)}" rx="1" fill="${fill}" opacity="${opacity}"><title>${esc(fmtDate(d.date))} — ${pctText(d.pct)} of daily target</title></rect>`;
   }).join("");
 
   // 100%-of-target reference line
@@ -429,8 +444,8 @@ function renderChart(nodeId, title, sub, period){
 
 function renderCharts(){
   const cal = data.calendar;
-  renderChart("chartWeek", "This week", `Mon ${cal.weekStart} → Sun · day ${cal.weekDayIndex} of 7`, "week");
-  renderChart("chartMonth", "This month", `${cal.monthStart.slice(0, 7)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, "month");
+  renderChart("chartWeek", "This week", `Mon ${fmtDate(cal.weekStart)} → Sun · day ${cal.weekDayIndex} of 7`, "week");
+  renderChart("chartMonth", "This month", `${fmtMonth(cal.monthStart)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, "month");
 }
 
 function setView(v){
@@ -488,7 +503,7 @@ function render(){
     total: "all POS sales"
   }[data.basis] || data.basis;
   el("metaRow").innerHTML = `
-    <span>Today <b>${esc(cal.today)}</b></span>
+    <span>Today <b>${esc(fmtDate(cal.today))}</b></span>
     <span>Week <b>day ${cal.weekDayIndex} of 7</b></span>
     <span>Month <b>day ${cal.monthDayIndex} of ${cal.daysInMonth}</b></span>
     <span>Measured on <b>${esc(basisLabel)}</b></span>
@@ -534,9 +549,9 @@ function render(){
     : "<span>Set a daily target to track this</span>";
 
   el("hero").innerHTML =
-      heroCard("Today", dayLabel(cal.today) + " " + cal.today, scope.today, todayFoot)
-    + heroCard("This week", `Mon ${cal.weekStart} → Sun · day ${cal.weekDayIndex} of 7`, scope.week, weekFoot)
-    + heroCard("This month", `${cal.monthStart.slice(0,7)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, scope.month, monthFoot);
+      heroCard("Today", dayLabel(cal.today) + " " + fmtDate(cal.today), scope.today, todayFoot)
+    + heroCard("This week", `Mon ${fmtDate(cal.weekStart)} → Sun · day ${cal.weekDayIndex} of 7`, scope.week, weekFoot)
+    + heroCard("This month", `${fmtMonth(cal.monthStart)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, scope.month, monthFoot);
 
   // A single-gym login gets the detail and trend on their own, without the
   // meters the hero above already shows. Charts comparing one gym with itself
