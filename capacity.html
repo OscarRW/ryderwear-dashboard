@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ryderwear Gyms — Target Tracking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;color:#0f0f1a;padding:24px;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #00000010;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand-logo{height:56px;width:auto;display:block;filter:brightness(0)}
+.brand-divider{width:1px;height:36px;background:#00000018;margin:0 4px}
+.brand-title{display:flex;flex-direction:column;gap:2px}
+h1{font-size:27px;font-weight:600;color:#1a1a26;letter-spacing:-.01em}
+.sub{font-size:18px;color:#777;font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.user-chip{font-size:15px;color:#555;background:#f4f4f6;border:1px solid #ececef;border-radius:20px;padding:6px 14px;font-weight:600}
+.user-chip b{color:#1a1a26}
+a.navlink,button.navlink{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:8px 14px;font-size:16px;font-family:inherit;font-weight:500;cursor:pointer;text-decoration:none;display:inline-block;transition:background .15s}
+a.navlink:hover,button.navlink:hover{background:#f4f4f6}
+
+.meta-row{display:flex;gap:18px;flex-wrap:wrap;font-size:15px;color:#888;margin-bottom:22px;letter-spacing:.02em}
+.meta-row b{color:#555;font-weight:600}
+
+.hero{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:12px}
+.hero-card{background:#fff;border:1px solid #ececef;border-radius:16px;padding:24px;box-shadow:0 1px 2px #0000000a}
+.hero-label{font-size:15px;color:#777;text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-bottom:4px}
+.hero-span{font-size:14px;color:#a0a0a8;font-weight:500;margin-bottom:14px}
+.hero-value{font-size:52px;font-weight:800;letter-spacing:-.02em;line-height:1;display:flex;align-items:baseline;gap:10px}
+.hero-value small{font-size:22px;font-weight:600;color:#a0a0a8}
+.hero-meter{margin-top:18px}
+.hero-meter .meter-track{height:12px}
+.hero-meter .meter-fill{height:12px}
+.hero-meter-note{font-size:14px;color:#888;margin-top:8px;letter-spacing:.02em}
+.hero-meter-note b{color:#555;font-weight:700}
+.hero-foot{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:15px;color:#777}
+.hero-foot b{font-weight:700}
+
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:32px 0 14px;flex-wrap:wrap}
+.section-title{font-size:21px;font-weight:600;color:#1a1a26}
+
+/* View switch */
+.viewbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:30px 0 16px;flex-wrap:wrap}
+.segmented{display:inline-flex;border:1px solid #d4d4d8;border-radius:10px;overflow:hidden}
+.segmented button{background:#fff;border:none;border-right:1px solid #ececef;padding:9px 20px;font-size:16px;font-weight:600;font-family:inherit;color:#666;cursor:pointer;transition:background .15s,color .15s}
+.segmented button:last-child{border-right:none}
+.segmented button.active{background:#1a1a26;color:#fff}
+.segmented button:hover:not(.active){background:#f4f4f6}
+
+/* All-gym comparison chart */
+.chart-card{background:#fff;border:1px solid #ececef;border-radius:16px;padding:22px 24px 18px;box-shadow:0 1px 2px #0000000a;margin-bottom:16px;min-width:0}
+.chart-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+.chart-title{font-size:19px;font-weight:700;color:#1a1a26}
+.chart-sub{font-size:14px;color:#999;font-weight:500}
+.chart-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#777;margin:10px 0 16px;align-items:center}
+.chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.lg-bar{width:16px;height:9px;border-radius:2px;background:#10b981}
+.lg-exp{width:2px;height:13px;background:#1a1a2666;border-radius:1px}
+.lg-proj{width:9px;height:9px;background:#1a1a26;transform:rotate(45deg);border-radius:1px}
+.lg-100{width:16px;height:0;border-top:2px dashed #1a1a2655}
+
+/* grid: gym name | plot | values */
+.crow,.caxis{display:grid;grid-template-columns:132px minmax(0,1fr) 104px;align-items:center;gap:12px}
+.caxis{margin-bottom:6px}
+.caxis-ticks{position:relative;height:15px}
+.caxis-ticks span{position:absolute;transform:translateX(-50%);font-size:12px;color:#aaa;font-weight:600;white-space:nowrap}
+.crow{padding:4px 0}
+.clabel{font-size:14px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cplot{position:relative;height:22px}
+.ctrack{position:absolute;inset:4px 0;background:#f4f4f6;border-radius:5px;overflow:hidden}
+.cgridline{position:absolute;top:0;bottom:0;width:1px;background:#00000010}
+.cbar{position:absolute;top:4px;height:14px;border-radius:5px;transition:width .35s ease}
+.cbar.good{background:#10b981}.cbar.warn{background:#f59e0b}.cbar.bad{background:#ef4444}.cbar.none{background:#d4d4d8}
+.cexp{position:absolute;top:1px;height:20px;width:2px;background:#1a1a2666;border-radius:1px}
+.cproj{position:absolute;top:5px;width:11px;height:11px;background:#1a1a26;transform:translateX(-50%) rotate(45deg);border-radius:2px;box-shadow:0 0 0 2px #fff}
+.c100{position:absolute;top:-1px;bottom:-1px;width:0;border-left:2px dashed #1a1a2655}
+.cover{position:absolute;top:6px;font-size:12px;font-weight:700;color:#0c8f63}
+.cval{text-align:right;font-size:15px;white-space:nowrap}
+.cval b{font-weight:700;color:#1a1a26}
+.cval .proj{color:#999;font-weight:600;font-size:13px;margin-left:5px}
+.cval .none{color:#c0c0c8;font-weight:600;font-size:13px}
+/* On a phone the plot column is too narrow for a readable axis, so the bar
+   drops onto its own full-width line under the gym name and its value. */
+@media(max-width:620px){
+  .crow{grid-template-columns:minmax(0,1fr) auto;row-gap:5px;padding:9px 0;border-bottom:1px solid #f7f7f9}
+  .crow:last-child{border-bottom:none}
+  .clabel{grid-column:1;grid-row:1}
+  .cval{grid-column:2;grid-row:1}
+  .cplot{grid-column:1 / -1;grid-row:2}
+  .clabel{font-size:15px}
+  .cval{font-size:15px}
+  .caxis{grid-template-columns:1fr}
+  .caxis > div:first-child,.caxis > div:last-child{display:none}
+}
+select{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:8px 12px;font-size:16px;font-family:inherit;cursor:pointer}
+select:hover{border-color:#a0a0a8}
+
+.gym-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px}
+.gym-card{background:#fff;border:1px solid #ececef;border-radius:16px;padding:22px;box-shadow:0 1px 2px #0000000a;transition:border-color .2s,box-shadow .2s}
+.gym-card:hover{border-color:#d4d4d8;box-shadow:0 8px 24px #00000012}
+.gym-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.gym-name{font-size:19px;font-weight:700;color:#0f0f1a;letter-spacing:-.01em}
+.chip{font-size:14px;font-weight:700;padding:4px 11px;border-radius:20px;white-space:nowrap;letter-spacing:.02em}
+.chip.good{background:#10b9811f;color:#0c8f63}
+.chip.warn{background:#f59e0b24;color:#a16207}
+.chip.bad{background:#ef44441f;color:#c8302d}
+.chip.none{background:#f4f4f6;color:#888}
+
+.meter-row{display:grid;grid-template-columns:62px 1fr 64px;align-items:center;gap:12px;margin-bottom:12px}
+.meter-key{font-size:14px;color:#888;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.meter-track{position:relative;height:10px;background:#f0f0f3;border-radius:6px;overflow:visible}
+.meter-fill{position:absolute;left:0;top:0;height:10px;border-radius:6px;transition:width .4s ease}
+.meter-fill.good{background:#10b981}
+.meter-fill.warn{background:#f59e0b}
+.meter-fill.bad{background:#ef4444}
+.meter-fill.none{background:#d4d4d8}
+.meter-over{position:absolute;right:-2px;top:-3px;width:4px;height:16px;border-radius:2px;background:#0c8f63}
+.meter-mark{position:absolute;top:-4px;width:2px;height:18px;background:#1a1a2655;border-radius:1px}
+.meter-pct{font-size:17px;font-weight:700;text-align:right;color:#1a1a26}
+.meter-pct.muted{color:#c0c0c8;font-weight:600}
+
+.detail{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid #f0f0f3}
+.detail-col-title{font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.09em;font-weight:700;margin-bottom:8px}
+.detail-line{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:#777;margin-bottom:5px}
+.detail-line b{color:#1a1a26;font-weight:600;white-space:nowrap}
+.detail-line b.good{color:#0c8f63}
+.detail-line b.bad{color:#c8302d}
+.detail-line b.warn{color:#a16207}
+
+.spark{margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f3}
+.spark-head{display:flex;justify-content:space-between;font-size:13px;color:#888;margin-bottom:7px;letter-spacing:.03em}
+.spark svg{display:block;width:100%;height:38px}
+
+.notice{background:#f4f4ff;border:1px solid #6366f140;border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:16px;color:#4a4a8a;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.notice a{color:#4f46e5;font-weight:600}
+.empty{color:#999;font-size:15px;padding:14px 0;text-align:center}
+
+.spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:70vh;gap:14px}
+.spin{width:40px;height:40px;border:3px solid #ececef;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:#fff;border:1px solid #ef4444;border-radius:12px;padding:32px;max-width:520px;margin:80px auto;text-align:center;box-shadow:0 4px 16px #00000010}
+#app{display:none}
+
+@media(max-width:900px){.hero{grid-template-columns:1fr}.gym-grid{grid-template-columns:1fr}}
+@media(max-width:480px){body{padding:16px}.detail{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="loading" class="spinner">
+  <div class="spin"></div>
+  <div style="color:#1a1a26;font-size:20px">Loading target tracking…</div>
+</div>
+
+<div id="errorBox" class="error-box" style="display:none">
+  <div style="font-size:44px;margin-bottom:12px">⚠️</div>
+  <div style="color:#ef4444;font-weight:700;margin-bottom:8px;font-size:22px">Couldn't load</div>
+  <div id="errMsg" style="color:#555;font-size:18px;margin-bottom:20px"></div>
+  <button class="navlink" onclick="load()">↻ Retry</button>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <img src="/logo.png" alt="Ryderwear Gym" class="brand-logo" onerror="this.style.display='none'">
+      <div class="brand-divider"></div>
+      <div class="brand-title">
+        <h1>Target Tracking</h1>
+        <div class="sub" id="subline">% of target by gym</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="user-chip" id="userChip"></span>
+      <a class="navlink" id="navAdmin" href="/admin.html" style="display:none">Targets &amp; logins</a>
+      <button class="navlink" onclick="load()">↻ Refresh</button>
+      <button class="navlink" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="meta-row" id="metaRow"></div>
+  <div id="notices"></div>
+
+  <div class="hero" id="hero"></div>
+
+  <div class="viewbar" id="viewbar">
+    <div class="segmented">
+      <button id="viewCharts" class="active" onclick="setView('charts')">Charts</button>
+      <button id="viewList" onclick="setView('list')">By gym</button>
+    </div>
+    <select id="sortSel" onchange="render()" style="display:none">
+      <option value="week">Sort: week % of target</option>
+      <option value="month">Sort: month % of target</option>
+      <option value="today">Sort: today % of target</option>
+      <option value="name">Sort: gym name</option>
+    </select>
+  </div>
+
+  <div id="chartsView">
+    <div class="chart-card" id="chartWeek"></div>
+    <div class="chart-card" id="chartMonth"></div>
+  </div>
+
+  <div id="gymSection" style="display:none">
+    <div class="section-head">
+      <div class="section-title" id="gymSectionTitle">By gym</div>
+    </div>
+    <div class="gym-grid" id="gymGrid"></div>
+  </div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+const SPARK_MAX_PCT = 150;   // a 150%-of-target day fills the sparkline bar
+const SCALE_MIN_PCT = 125;   // chart axis always reaches at least here…
+const SCALE_MAX_PCT = 300;   // …and never past here, however far a gym runs
+const VIEW_KEY = "rwgym_capacity_view";
+
+// ── State ─────────────────────────────────────────────────────────────────
+let data = null;
+let me = null;
+let currentView = (() => {
+  try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "charts"; }
+  catch (e) { return "charts"; }
+})();
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+const pctText = v => (v == null ? "—" : Math.round(v) + "%");
+// The only dollar figure on the page: what's still needed per trading day.
+const moneyText = v => (v == null ? "—" : "$" + Math.round(v).toLocaleString("en-AU"));
+const el = id => document.getElementById(id);
+
+// Pace tone: how a gym is travelling versus where it should be by now.
+function tone(pacePct){
+  if (pacePct == null) return "none";
+  if (pacePct >= 98)  return "good";
+  if (pacePct >= 90)  return "warn";
+  return "bad";
+}
+// The dollars-needed figure is coloured by how it compares with a normal
+// target day: well above one means the gym has to out-trade itself to catch up.
+function needTone(block){
+  const p = block.requiredPctOfDaily;
+  if (p == null) return "";
+  if (p > 115) return "bad";
+  if (p > 100) return "warn";
+  return "good";
+}
+
+function toneLabel(pacePct){
+  if (pacePct == null) return "No target";
+  if (pacePct >= 102) return "Ahead";
+  if (pacePct >= 98)  return "On pace";
+  if (pacePct >= 90)  return "Slightly behind";
+  return "Behind";
+}
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => (
+    { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]
+  ));
+}
+
+function timeAgo(ts){
+  if (!ts) return "never";
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  return Math.round(hrs / 24) + "d ago";
+}
+
+// The API speaks ISO (YYYY-MM-DD) because it sorts and compares cleanly;
+// everything shown to a person is Australian day-first.
+function fmtDate(iso){
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function fmtMonth(iso){
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-AU", {
+    month: "long", year: "numeric", timeZone: "UTC"
+  });
+}
+
+function dayLabel(iso){
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-AU", {
+    weekday: "short", timeZone: "UTC"
+  });
+}
+
+// ── Components ────────────────────────────────────────────────────────────
+// A bar showing % of target, with a tick marking where the gym should be by
+// now if it had traded evenly across the period.
+function meter(key, achievedPct, expectedPct, targetSet){
+  const t = targetSet ? tone(expectedPct > 0 ? (achievedPct / expectedPct) * 100 : null) : "none";
+  const width = Math.min(100, Math.max(0, achievedPct || 0));
+  const markAt = Math.min(100, Math.max(0, expectedPct || 0));
+  const over = targetSet && achievedPct > 100;
+  return `
+    <div class="meter-row">
+      <div class="meter-key">${key}</div>
+      <div class="meter-track">
+        <div class="meter-fill ${t}" style="width:${width}%"></div>
+        ${over ? '<div class="meter-over"></div>' : ""}
+        ${targetSet ? `<div class="meter-mark" style="left:${markAt}%" title="Expected by now"></div>` : ""}
+      </div>
+      <div class="meter-pct ${targetSet ? "" : "muted"}">${targetSet ? pctText(achievedPct) : "—"}</div>
+    </div>`;
+}
+
+// 14 days of "% of daily target", one bar per day.
+function sparkline(trend){
+  const w = 100, h = 38, gap = 1.6;
+  const barW = (w - gap * (trend.length - 1)) / trend.length;
+  const bars = trend.map((d, i) => {
+    const x = i * (barW + gap);
+    if (d.pct == null) {
+      return `<rect x="${x.toFixed(2)}" y="${h - 2}" width="${barW.toFixed(2)}" height="2" rx="1" fill="#ececef"></rect>`;
+    }
+    const scaled = Math.min(1, d.pct / SPARK_MAX_PCT);
+    const barH = Math.max(2, scaled * h);
+    const fill = d.pct >= 100 ? "#10b981" : d.pct >= 90 ? "#f59e0b" : "#ef4444";
+    const opacity = d.isToday ? 1 : 0.75;
+    return `<rect x="${x.toFixed(2)}" y="${(h - barH).toFixed(2)}" width="${barW.toFixed(2)}" height="${barH.toFixed(2)}" rx="1" fill="${fill}" opacity="${opacity}"><title>${esc(fmtDate(d.date))} — ${pctText(d.pct)} of daily target</title></rect>`;
+  }).join("");
+
+  // 100%-of-target reference line
+  const refY = h - (100 / SPARK_MAX_PCT) * h;
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Last 14 days versus daily target">
+    <line x1="0" y1="${refY.toFixed(2)}" x2="${w}" y2="${refY.toFixed(2)}" stroke="#1a1a2622" stroke-width="0.6" stroke-dasharray="2 2"></line>
+    ${bars}
+  </svg>`;
+}
+
+// ── All-gym comparison chart ──────────────────────────────────────────────
+// One row per gym: a bar for what's banked so far, a quiet tick for where the
+// gym should be by now, and a diamond for where its current run rate lands it
+// at the end of the period. The dashed line is target.
+//
+// The axis is fixed across both charts so the week and the month read on the
+// same scale, and widened only if a gym runs past it.
+function chartScale(rows, period){
+  let max = SCALE_MIN_PCT;
+  for (const g of rows){
+    const b = g[period];
+    if (!b.targetSet) continue;
+    max = Math.max(max, b.achievedPct || 0, b.projectedPct || 0);
+  }
+  return Math.min(SCALE_MAX_PCT, Math.ceil(max / 25) * 25);
+}
+
+function chartRow(g, period, scale){
+  const b = g[period];
+  const at = v => Math.min(100, Math.max(0, (v / scale) * 100));
+
+  if (!b.targetSet){
+    return `
+      <div class="crow">
+        <div class="clabel" title="${esc(g.gym)}">${esc(g.gym)}</div>
+        <div class="cplot"><div class="ctrack"></div>${gridlines(scale)}</div>
+        <div class="cval"><span class="none">No target</span></div>
+      </div>`;
+  }
+
+  const t = tone(b.pacePct);
+  const achieved = b.achievedPct || 0;
+  const overflowed = achieved > scale;
+  const projText = b.projectedPct == null
+    ? '<span class="proj">→ too early</span>'
+    : `<span class="proj">→ ${pctText(b.projectedPct)}</span>`;
+
+  return `
+    <div class="crow">
+      <div class="clabel" title="${esc(g.gym)}">${esc(g.gym)}</div>
+      <div class="cplot">
+        <div class="ctrack"></div>
+        ${gridlines(scale)}
+        <div class="cbar ${t}" style="width:${at(achieved)}%"
+             title="${esc(g.gym)} — ${pctText(achieved)} of ${period} target"></div>
+        <div class="cexp" style="left:${at(b.expectedPct)}%"
+             title="Expected by now ${pctText(b.expectedPct)}"></div>
+        ${b.projectedPct != null ? `<div class="cproj" style="left:${at(b.projectedPct)}%"
+             title="At current run rate, finishes at ${pctText(b.projectedPct)}"></div>` : ""}
+        <div class="c100" style="left:${at(100)}%"></div>
+        ${overflowed ? `<div class="cover" style="right:2px">▸</div>` : ""}
+      </div>
+      <div class="cval"><b>${pctText(achieved)}</b>${projText}</div>
+    </div>`;
+}
+
+function gridlines(scale){
+  let out = "";
+  for (let v = 25; v < scale; v += 25){
+    if (v === 100) continue; // drawn separately as the dashed target line
+    out += `<div class="cgridline" style="left:${(v / scale) * 100}%"></div>`;
+  }
+  return out;
+}
+
+function chartAxis(scale){
+  let ticks = "";
+  for (let v = 0; v <= scale; v += 25){
+    // Nudge the end labels inward so they don't hang off the plot area.
+    const shift = v === 0 ? "0" : v === scale ? "-100%" : "-50%";
+    ticks += `<span style="left:${(v / scale) * 100}%;transform:translateX(${shift})">${v}%</span>`;
+  }
+  return `<div class="caxis"><div></div><div class="caxis-ticks">${ticks}</div><div></div></div>`;
+}
+
+function renderChart(nodeId, title, sub, period){
+  const scale = chartScale(data.gyms, period);
+  const rows = data.gyms.slice().sort((a, b) => {
+    const av = a[period].targetSet ? (a[period].achievedPct ?? -1) : -1;
+    const bv = b[period].targetSet ? (b[period].achievedPct ?? -1) : -1;
+    if (bv !== av) return bv - av;
+    return a.gym.localeCompare(b.gym);
+  });
+
+  el(nodeId).innerHTML = `
+    <div class="chart-head">
+      <div class="chart-title">${esc(title)}</div>
+      <div class="chart-sub">${esc(sub)}</div>
+    </div>
+    <div class="chart-legend">
+      <span><i class="lg-bar"></i> Banked so far</span>
+      <span><i class="lg-exp"></i> Expected by now</span>
+      <span><i class="lg-proj"></i> Finish at current run rate</span>
+      <span><i class="lg-100"></i> Target</span>
+    </div>
+    ${chartAxis(scale)}
+    ${rows.map(g => chartRow(g, period, scale)).join("")}`;
+}
+
+function renderCharts(){
+  const cal = data.calendar;
+  renderChart("chartWeek", "This week", `Mon ${fmtDate(cal.weekStart)} → Sun · day ${cal.weekDayIndex} of 7`, "week");
+  renderChart("chartMonth", "This month", `${fmtMonth(cal.monthStart)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, "month");
+}
+
+function setView(v){
+  currentView = v;
+  try { localStorage.setItem(VIEW_KEY, v); } catch (e) {}
+  el("viewCharts").classList.toggle("active", v === "charts");
+  el("viewList").classList.toggle("active", v === "list");
+  el("chartsView").style.display = v === "charts" ? "" : "none";
+  el("gymSection").style.display = v === "charts" ? "none" : "";
+  el("sortSel").style.display = v === "charts" ? "none" : "";
+  if (v === "charts") renderCharts(); else renderList();
+}
+
+function heroCard(label, span, block, extraFoot){
+  const t = block.targetSet ? tone(block.pacePct != null ? block.pacePct
+            : (block.expectedPct > 0 ? (block.achievedPct / block.expectedPct) * 100 : null)) : "none";
+  const colour = { good:"#0c8f63", warn:"#a16207", bad:"#c8302d", none:"#a0a0a8" }[t];
+  return `
+    <div class="hero-card">
+      <div class="hero-label">${esc(label)}</div>
+      <div class="hero-span">${esc(span)}</div>
+      <div class="hero-value" style="color:${colour}">
+        ${block.targetSet ? pctText(block.achievedPct) : "—"}
+        <small>${block.targetSet ? "of target" : "no target set"}</small>
+      </div>
+      ${block.targetSet ? `
+        <div class="hero-meter">
+          <div class="meter-track">
+            <div class="meter-fill ${t}" style="width:${Math.min(100, Math.max(0, block.achievedPct || 0))}%"></div>
+            ${block.achievedPct > 100 ? '<div class="meter-over"></div>' : ""}
+            <div class="meter-mark" style="left:${Math.min(100, Math.max(0, block.expectedPct || 0))}%"></div>
+          </div>
+          <div class="hero-meter-note">
+            Expected by now <b>${pctText(block.expectedPct)}</b>
+          </div>
+        </div>` : ""}
+      <div class="hero-foot">${extraFoot}</div>
+    </div>`;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render(){
+  if (!data) return;
+  const cal = data.calendar;
+
+  el("userChip").innerHTML = `<b>${esc(data.username)}</b> · ${data.role === "admin" ? "Admin" : "Gym"}`;
+  if (me && me.role === "admin"){
+    el("navAdmin").style.display = "inline-block";
+  }
+
+  const basisLabel = {
+    exgym_giftcards: "POS sales ex gym products, incl. gift cards",
+    exgym: "POS sales ex gym products",
+    total: "all POS sales"
+  }[data.basis] || data.basis;
+  el("metaRow").innerHTML = `
+    <span>Today <b>${esc(fmtDate(cal.today))}</b></span>
+    <span>Week <b>day ${cal.weekDayIndex} of 7</b></span>
+    <span>Month <b>day ${cal.monthDayIndex} of ${cal.daysInMonth}</b></span>
+    <span>Measured on <b>${esc(basisLabel)}</b></span>
+    <span>Sales data <b>${esc(timeAgo(data.dataUpdatedAt))}</b></span>
+    <span>Targets set <b>${esc(timeAgo(data.targetsUpdatedAt))}</b></span>`;
+
+  // Notices
+  const notices = [];
+  if (data.group.gymsWithTargets === 0){
+    notices.push(`No targets have been entered yet, so there is nothing to track against.
+      ${me && me.role === "admin" ? '<a href="/admin.html">Set targets →</a>' : "Ask an admin to set them."}`);
+  } else if (data.group.gymsWithTargets < data.group.gymCount){
+    const missing = data.group.gymCount - data.group.gymsWithTargets;
+    notices.push(`${missing} gym${missing === 1 ? "" : "s"} still ${missing === 1 ? "has" : "have"} no target set.
+      ${me && me.role === "admin" ? '<a href="/admin.html">Set targets →</a>' : ""}`);
+  }
+  el("notices").innerHTML = notices.map(n => `<div class="notice">${n}</div>`).join("");
+
+  // Hero — the whole scope rolled up, or the single gym on its own
+  const single = data.gyms.length === 1;
+  const scope = single ? data.gyms[0] : data.group;
+  el("subline").textContent = single
+    ? data.gyms[0].gym
+    : `${data.group.gymCount} gyms · % of target`;
+
+  const needFoot = block => block.metAlready
+    ? '<span><b class="good">Target already met</b></span>'
+    : `<span>Need <b class="${needTone(block)}">${moneyText(block.requiredPerDay)}</b> a day for ${block.daysRemainingIncludingToday} day${block.daysRemainingIncludingToday === 1 ? "" : "s"}</span>`;
+
+  const weekFoot = scope.week.targetSet ? `
+      <span>Pace <b class="${tone(scope.week.pacePct)}">${pctText(scope.week.pacePct)}</b></span>
+      ${needFoot(scope.week)}`
+    : "<span>Set a weekly target to track this</span>";
+
+  const monthFoot = scope.month.targetSet ? `
+      <span>Pace <b class="${tone(scope.month.pacePct)}">${pctText(scope.month.pacePct)}</b></span>
+      ${needFoot(scope.month)}`
+    : "<span>Set a monthly target to track this</span>";
+
+  const todayFoot = scope.today.targetSet
+    ? `<span>Day <b>${pctText(cal.todayElapsedPct)}</b> elapsed</span>
+       <span>Yesterday <b>${pctText(scope.yesterday.achievedPct)}</b></span>`
+    : "<span>Set a daily target to track this</span>";
+
+  el("hero").innerHTML =
+      heroCard("Today", dayLabel(cal.today) + " " + fmtDate(cal.today), scope.today, todayFoot)
+    + heroCard("This week", `Mon ${fmtDate(cal.weekStart)} → Sun · day ${cal.weekDayIndex} of 7`, scope.week, weekFoot)
+    + heroCard("This month", `${fmtMonth(cal.monthStart)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, scope.month, monthFoot);
+
+  // A single-gym login gets the detail and trend on their own, without the
+  // meters the hero above already shows. Charts comparing one gym with itself
+  // would be noise, so the view switch doesn't appear.
+  if (single){
+    const g = data.gyms[0];
+    el("viewbar").style.display = "none";
+    el("chartsView").style.display = "none";
+    el("gymSection").style.display = "";
+    el("gymSectionTitle").textContent = "Detail";
+    el("gymGrid").style.gridTemplateColumns = "minmax(0,760px)";
+    el("gymGrid").innerHTML = `
+      <div class="gym-card">
+        <div class="detail" style="margin-top:0;padding-top:0;border-top:none">
+          ${periodDetail("Week", g.week)}
+          ${periodDetail("Month", g.month)}
+        </div>
+        <div class="spark">
+          <div class="spark-head">
+            <span>Last 14 days vs daily target</span>
+            <span>dashed line = 100%</span>
+          </div>
+          ${sparkline(g.trend)}
+        </div>
+      </div>`;
+    return;
+  }
+
+  el("viewbar").style.display = "";
+  setView(currentView);
+}
+
+// The per-gym breakdown: meters, pace, needed per day, projection and the
+// 14-day trend for every gym on the login.
+function renderList(){
+  el("gymSectionTitle").textContent = `By gym (${data.gyms.length})`;
+  el("gymGrid").style.gridTemplateColumns = "";
+
+  const sortBy = el("sortSel").value;
+  const rank = g => {
+    if (sortBy === "name") return 0;
+    const block = sortBy === "today" ? g.today : sortBy === "month" ? g.month : g.week;
+    return block.targetSet && block.achievedPct != null ? -block.achievedPct : Infinity;
+  };
+  const rows = data.gyms.slice().sort((a, b) => {
+    const d = rank(a) - rank(b);
+    return d !== 0 && Number.isFinite(d) ? d : a.gym.localeCompare(b.gym);
+  });
+
+  el("gymGrid").innerHTML = rows.map(gymCard).join("")
+    || '<div class="empty">No gyms on this login.</div>';
+}
+
+function periodDetail(title, block){
+  if (!block.targetSet){
+    return `<div><div class="detail-col-title">${esc(title)}</div>
+      <div class="detail-line"><span>No target set</span></div></div>`;
+  }
+  const need = block.metAlready
+    ? '<b class="good">Target met</b>'
+    : `<b class="${needTone(block)}">${moneyText(block.requiredPerDay)}</b>`;
+  return `
+    <div>
+      <div class="detail-col-title">${esc(title)}</div>
+      <div class="detail-line"><span>Pace</span><b class="${tone(block.pacePct)}">${pctText(block.pacePct)}</b></div>
+      <div class="detail-line"><span>Run rate</span><b>${block.runRatePctOfDaily == null ? "too early" : pctText(block.runRatePctOfDaily) + " of a day"}</b></div>
+      <div class="detail-line"><span>Need / day (${block.daysRemainingIncludingToday} left)</span>${need}</div>
+      <div class="detail-line"><span>Projected finish</span><b>${block.projectedPct == null ? "too early" : pctText(block.projectedPct)}</b></div>
+    </div>`;
+}
+
+function gymCard(g){
+  const pace = g.week.targetSet ? g.week.pacePct
+             : g.month.targetSet ? g.month.pacePct
+             : null;
+  return `
+    <div class="gym-card">
+      <div class="gym-head">
+        <div class="gym-name">${esc(g.gym)}</div>
+        <div class="chip ${tone(pace)}">${toneLabel(pace)}</div>
+      </div>
+
+      ${meter("Today", g.today.achievedPct, g.today.expectedPct, g.today.targetSet)}
+      ${meter("Week",  g.week.achievedPct,  g.week.expectedPct,  g.week.targetSet)}
+      ${meter("Month", g.month.achievedPct, g.month.expectedPct, g.month.targetSet)}
+
+      <div class="detail">
+        ${periodDetail("Week", g.week)}
+        ${periodDetail("Month", g.month)}
+      </div>
+
+      <div class="spark">
+        <div class="spark-head">
+          <span>Last 14 days vs daily target</span>
+          <span>dashed line = 100%</span>
+        </div>
+        ${sparkline(g.trend)}
+      </div>
+    </div>`;
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────
+function showError(msg){
+  el("loading").style.display = "none";
+  el("app").style.display = "none";
+  el("errorBox").style.display = "";
+  el("errMsg").textContent = msg;
+}
+
+async function load(){
+  el("errorBox").style.display = "none";
+  if (!data) el("loading").style.display = "flex";
+
+  try {
+    const [meRes, progressRes] = await Promise.all([
+      fetch("/api/me", { cache: "no-store" }),
+      fetch("/api/progress", { cache: "no-store" })
+    ]);
+
+    if (meRes.status === 401 || progressRes.status === 401){
+      window.location.href = "/login.html";
+      return;
+    }
+    if (!progressRes.ok){
+      const body = await progressRes.json().catch(() => ({}));
+      showError(body.error || `Request failed (${progressRes.status})`);
+      return;
+    }
+
+    me = meRes.ok ? await meRes.json() : null;
+    data = await progressRes.json();
+
+    el("loading").style.display = "none";
+    el("app").style.display = "block";
+    render();
+  } catch (e) {
+    showError(e.message || "Network error");
+  }
+}
+
+async function signOut(){
+  await fetch("/api/logout", { method: "POST" }).catch(() => {});
+  window.location.href = "/login.html";
+}
+
+load();
+setInterval(load, AUTO_REFRESH_MS);
+</script>
+</body>
+</html>

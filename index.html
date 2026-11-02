@@ -68,6 +68,8 @@ select:hover{border-color:#a0a0a8}
 .top-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
 .top-cat-head{font-size:18px;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #ececef}
 .sms{font-size:17px!important;padding:4px 8px!important;border-radius:6px!important;background:#f4f4f6!important;border-color:#d4d4d8!important;color:#1a1a26!important}
+a.navlink{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:8px 12px;font-size:20px;font-family:inherit;text-decoration:none;display:inline-block;transition:background .15s}
+a.navlink:hover{background:#f4f4f6}
 .dod-day-label{font-size:17px;color:#777;text-align:center;margin-top:4px}
 @media(max-width:1100px){.top-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-row{grid-template-columns:1fr}.top-grid{grid-template-columns:1fr}}
@@ -132,6 +134,7 @@ select:hover{border-color:#a0a0a8}
     </select>
     <button onclick="refreshData()">↻ Refresh data</button>
     <button onclick="hardRefresh()">Hard refresh</button>
+    <button onclick="signOut()">Sign out</button>
     <span id="lastRefresh" style="font-size:18px;color:#777;margin-left:4px"></span>
   </div>
 
@@ -318,6 +321,12 @@ function hardRefresh(){
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem(PRODUCT_CACHE_KEY);
   location.reload();
+}
+async function signOut(){
+  await fetch("/api/logout",{method:"POST"}).catch(()=>{});
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(PRODUCT_CACHE_KEY);
+  window.location.href="/login.html";
 }
 
 // Triggers a real Shopify refresh (bulk export → KV → reload) instead of

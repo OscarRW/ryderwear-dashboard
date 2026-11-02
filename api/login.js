@@ -1,47 +1,54 @@
-const crypto = require('crypto');
+// POST /api/login  { username, password } → sets the signed `auth` cookie.
+//
+// Responds with the landing page for the account's role so the sign-in form
+// knows where to send them: admins to the $ sales dashboard, gym accounts to
+// the capacity dashboard (which never shows a dollar figure).
 
-module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'method not allowed' });
+const { authenticate, signSession, sessionCookie, parseBody } = require("../lib/auth");
+
+const FAILED_ATTEMPT_DELAY_MS = 250;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const landingFor = role => (role === "admin" ? "/" : "/capacity.html");
+
+module.exports = async function handler(req, res){
+  if (req.method !== "POST"){
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "method not allowed" });
   }
 
-  const expected = process.env.DASHBOARD_PASSWORD;
-  const secret = process.env.AUTH_SECRET;
-
-  if (!expected || !secret) {
-    return res.status(500).json({ error: 'auth not configured' });
+  if (!process.env.AUTH_SECRET){
+    return res.status(500).json({ error: "auth not configured" });
   }
 
-  let body = req.body;
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch { body = {}; }
-  }
-  const password = body && body.password;
+  const body = parseBody(req);
+  const username = body.username;
+  const password = body.password;
 
-  if (typeof password !== 'string' || password.length === 0) {
-    return res.status(400).json({ error: 'password required' });
-  }
-
-  const a = Buffer.from(password);
-  const b = Buffer.from(expected);
-  const equal = a.length === b.length && crypto.timingSafeEqual(a, b);
-
-  if (!equal) {
-    return res.status(401).json({ error: 'invalid password' });
+  if (typeof username !== "string" || !username.trim() ||
+      typeof password !== "string" || !password){
+    return res.status(400).json({ error: "username and password required" });
   }
 
-  const maxAge = 30 * 24 * 60 * 60;
-  const expiry = Date.now() + maxAge * 1000;
-  const sig = crypto
-    .createHmac('sha256', secret)
-    .update(String(expiry))
-    .digest('base64url');
-  const token = `${expiry}.${sig}`;
+  let subject;
+  try {
+    subject = await authenticate(username, password);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 
-  res.setHeader(
-    'Set-Cookie',
-    `auth=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`
-  );
-  res.status(200).json({ ok: true });
+  if (!subject){
+    // Blunt the edges of a password-guessing loop without pretending this is
+    // a real rate limiter — serverless instances are too short-lived for that.
+    await sleep(FAILED_ATTEMPT_DELAY_MS);
+    return res.status(401).json({ error: "invalid username or password" });
+  }
+
+  res.setHeader("Set-Cookie", sessionCookie(signSession(subject)));
+  res.status(200).json({
+    ok: true,
+    role: subject.role,
+    bootstrap: !!subject.bootstrap,
+    redirect: landingFor(subject.role)
+  });
 };
