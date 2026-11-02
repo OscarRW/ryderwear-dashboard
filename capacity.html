@@ -513,7 +513,7 @@ function heroCard(label, span, block, extraFoot, trend){
       ${trend && trend.length ? `
         <div class="hero-spark">
           ${sparkline(trend)}
-          <div class="hero-spark-note">Last 14 days vs daily target</div>
+          <div class="hero-spark-note">Last 14 days vs that day’s target</div>
         </div>` : ""}
     </div>`;
 }
@@ -574,10 +574,19 @@ function render(){
       ${needFoot(scope.month)}`
     : "<span>Set a monthly target to track this</span>";
 
+  // The day's target follows each gym's own weekday pattern, so say so when
+  // today is meaningfully busier or quieter than an average day — otherwise
+  // a quiet Sunday looks like underperformance.
+  const f = scope.today.dayFactor;
+  const shapeNote = scope.today.weighted && f != null && Math.abs(f - 1) >= 0.05
+    ? `<span>${dayLabel(cal.today)} is a <b>${f}×</b> day here</span>`
+    : "";
+
   const todayFoot = scope.today.targetSet
     ? `<span>Day <b>${pctText(cal.todayElapsedPct)}</b> elapsed</span>
-       <span>Yesterday <b>${pctText(scope.yesterday.achievedPct)}</b></span>`
-    : "<span>Set a daily target to track this</span>";
+       <span>Yesterday <b>${pctText(scope.yesterday.achievedPct)}</b></span>
+       ${shapeNote}`
+    : "<span>Set a weekly target to track this</span>";
 
   el("hero").innerHTML =
       heroCard("Today", dayLabel(cal.today) + " " + fmtDate(cal.today), scope.today, todayFoot, scope.trend)
@@ -602,7 +611,7 @@ function render(){
         </div>
         <div class="spark">
           <div class="spark-head">
-            <span>Last 14 days vs daily target</span>
+            <span>Last 14 days vs that day’s target</span>
             <span>dashed line = 100%</span>
           </div>
           ${sparkline(g.trend)}
@@ -676,7 +685,7 @@ function gymCard(g){
 
       <div class="spark">
         <div class="spark-head">
-          <span>Last 14 days vs daily target</span>
+          <span>Last 14 days vs that day’s target</span>
           <span>dashed line = 100%</span>
         </div>
         ${sparkline(g.trend)}
