@@ -43,6 +43,60 @@ a.navlink:hover,button.navlink:hover{background:#f4f4f6}
 
 .section-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:32px 0 14px;flex-wrap:wrap}
 .section-title{font-size:21px;font-weight:600;color:#1a1a26}
+
+/* View switch */
+.viewbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:30px 0 16px;flex-wrap:wrap}
+.segmented{display:inline-flex;border:1px solid #d4d4d8;border-radius:10px;overflow:hidden}
+.segmented button{background:#fff;border:none;border-right:1px solid #ececef;padding:9px 20px;font-size:16px;font-weight:600;font-family:inherit;color:#666;cursor:pointer;transition:background .15s,color .15s}
+.segmented button:last-child{border-right:none}
+.segmented button.active{background:#1a1a26;color:#fff}
+.segmented button:hover:not(.active){background:#f4f4f6}
+
+/* All-gym comparison chart */
+.chart-card{background:#fff;border:1px solid #ececef;border-radius:16px;padding:22px 24px 18px;box-shadow:0 1px 2px #0000000a;margin-bottom:16px;min-width:0}
+.chart-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+.chart-title{font-size:19px;font-weight:700;color:#1a1a26}
+.chart-sub{font-size:14px;color:#999;font-weight:500}
+.chart-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#777;margin:10px 0 16px;align-items:center}
+.chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.lg-bar{width:16px;height:9px;border-radius:2px;background:#10b981}
+.lg-exp{width:2px;height:13px;background:#1a1a2666;border-radius:1px}
+.lg-proj{width:9px;height:9px;background:#1a1a26;transform:rotate(45deg);border-radius:1px}
+.lg-100{width:16px;height:0;border-top:2px dashed #1a1a2655}
+
+/* grid: gym name | plot | values */
+.crow,.caxis{display:grid;grid-template-columns:132px minmax(0,1fr) 104px;align-items:center;gap:12px}
+.caxis{margin-bottom:6px}
+.caxis-ticks{position:relative;height:15px}
+.caxis-ticks span{position:absolute;transform:translateX(-50%);font-size:12px;color:#aaa;font-weight:600;white-space:nowrap}
+.crow{padding:4px 0}
+.clabel{font-size:14px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cplot{position:relative;height:22px}
+.ctrack{position:absolute;inset:4px 0;background:#f4f4f6;border-radius:5px;overflow:hidden}
+.cgridline{position:absolute;top:0;bottom:0;width:1px;background:#00000010}
+.cbar{position:absolute;top:4px;height:14px;border-radius:5px;transition:width .35s ease}
+.cbar.good{background:#10b981}.cbar.warn{background:#f59e0b}.cbar.bad{background:#ef4444}.cbar.none{background:#d4d4d8}
+.cexp{position:absolute;top:1px;height:20px;width:2px;background:#1a1a2666;border-radius:1px}
+.cproj{position:absolute;top:5px;width:11px;height:11px;background:#1a1a26;transform:translateX(-50%) rotate(45deg);border-radius:2px;box-shadow:0 0 0 2px #fff}
+.c100{position:absolute;top:-1px;bottom:-1px;width:0;border-left:2px dashed #1a1a2655}
+.cover{position:absolute;top:6px;font-size:12px;font-weight:700;color:#0c8f63}
+.cval{text-align:right;font-size:15px;white-space:nowrap}
+.cval b{font-weight:700;color:#1a1a26}
+.cval .proj{color:#999;font-weight:600;font-size:13px;margin-left:5px}
+.cval .none{color:#c0c0c8;font-weight:600;font-size:13px}
+/* On a phone the plot column is too narrow for a readable axis, so the bar
+   drops onto its own full-width line under the gym name and its value. */
+@media(max-width:620px){
+  .crow{grid-template-columns:minmax(0,1fr) auto;row-gap:5px;padding:9px 0;border-bottom:1px solid #f7f7f9}
+  .crow:last-child{border-bottom:none}
+  .clabel{grid-column:1;grid-row:1}
+  .cval{grid-column:2;grid-row:1}
+  .cplot{grid-column:1 / -1;grid-row:2}
+  .clabel{font-size:15px}
+  .cval{font-size:15px}
+  .caxis{grid-template-columns:1fr}
+  .caxis > div:first-child,.caxis > div:last-child{display:none}
+}
 select{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:8px 12px;font-size:16px;font-family:inherit;cursor:pointer}
 select:hover{border-color:#a0a0a8}
 
@@ -134,15 +188,27 @@ select:hover{border-color:#a0a0a8}
 
   <div class="hero" id="hero"></div>
 
-  <div id="gymSection">
+  <div class="viewbar" id="viewbar">
+    <div class="segmented">
+      <button id="viewCharts" class="active" onclick="setView('charts')">Charts</button>
+      <button id="viewList" onclick="setView('list')">By gym</button>
+    </div>
+    <select id="sortSel" onchange="render()" style="display:none">
+      <option value="week">Sort: week % of target</option>
+      <option value="month">Sort: month % of target</option>
+      <option value="today">Sort: today % of target</option>
+      <option value="name">Sort: gym name</option>
+    </select>
+  </div>
+
+  <div id="chartsView">
+    <div class="chart-card" id="chartWeek"></div>
+    <div class="chart-card" id="chartMonth"></div>
+  </div>
+
+  <div id="gymSection" style="display:none">
     <div class="section-head">
       <div class="section-title" id="gymSectionTitle">By gym</div>
-      <select id="sortSel" onchange="render()">
-        <option value="week">Sort: week % of target</option>
-        <option value="month">Sort: month % of target</option>
-        <option value="today">Sort: today % of target</option>
-        <option value="name">Sort: gym name</option>
-      </select>
     </div>
     <div class="gym-grid" id="gymGrid"></div>
   </div>
@@ -152,10 +218,17 @@ select:hover{border-color:#a0a0a8}
 // ── Config ────────────────────────────────────────────────────────────────
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 const SPARK_MAX_PCT = 150;   // a 150%-of-target day fills the sparkline bar
+const SCALE_MIN_PCT = 125;   // chart axis always reaches at least here…
+const SCALE_MAX_PCT = 300;   // …and never past here, however far a gym runs
+const VIEW_KEY = "rwgym_capacity_view";
 
 // ── State ─────────────────────────────────────────────────────────────────
 let data = null;
 let me = null;
+let currentView = (() => {
+  try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "charts"; }
+  catch (e) { return "charts"; }
+})();
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const pctText = v => (v == null ? "—" : Math.round(v) + "%");
@@ -255,6 +328,122 @@ function sparkline(trend){
   </svg>`;
 }
 
+// ── All-gym comparison chart ──────────────────────────────────────────────
+// One row per gym: a bar for what's banked so far, a quiet tick for where the
+// gym should be by now, and a diamond for where its current run rate lands it
+// at the end of the period. The dashed line is target.
+//
+// The axis is fixed across both charts so the week and the month read on the
+// same scale, and widened only if a gym runs past it.
+function chartScale(rows, period){
+  let max = SCALE_MIN_PCT;
+  for (const g of rows){
+    const b = g[period];
+    if (!b.targetSet) continue;
+    max = Math.max(max, b.achievedPct || 0, b.projectedPct || 0);
+  }
+  return Math.min(SCALE_MAX_PCT, Math.ceil(max / 25) * 25);
+}
+
+function chartRow(g, period, scale){
+  const b = g[period];
+  const at = v => Math.min(100, Math.max(0, (v / scale) * 100));
+
+  if (!b.targetSet){
+    return `
+      <div class="crow">
+        <div class="clabel" title="${esc(g.gym)}">${esc(g.gym)}</div>
+        <div class="cplot"><div class="ctrack"></div>${gridlines(scale)}</div>
+        <div class="cval"><span class="none">No target</span></div>
+      </div>`;
+  }
+
+  const t = tone(b.pacePct);
+  const achieved = b.achievedPct || 0;
+  const overflowed = achieved > scale;
+  const projText = b.projectedPct == null
+    ? '<span class="proj">→ too early</span>'
+    : `<span class="proj">→ ${pctText(b.projectedPct)}</span>`;
+
+  return `
+    <div class="crow">
+      <div class="clabel" title="${esc(g.gym)}">${esc(g.gym)}</div>
+      <div class="cplot">
+        <div class="ctrack"></div>
+        ${gridlines(scale)}
+        <div class="cbar ${t}" style="width:${at(achieved)}%"
+             title="${esc(g.gym)} — ${pctText(achieved)} of ${period} target"></div>
+        <div class="cexp" style="left:${at(b.expectedPct)}%"
+             title="Expected by now ${pctText(b.expectedPct)}"></div>
+        ${b.projectedPct != null ? `<div class="cproj" style="left:${at(b.projectedPct)}%"
+             title="At current run rate, finishes at ${pctText(b.projectedPct)}"></div>` : ""}
+        <div class="c100" style="left:${at(100)}%"></div>
+        ${overflowed ? `<div class="cover" style="right:2px">▸</div>` : ""}
+      </div>
+      <div class="cval"><b>${pctText(achieved)}</b>${projText}</div>
+    </div>`;
+}
+
+function gridlines(scale){
+  let out = "";
+  for (let v = 25; v < scale; v += 25){
+    if (v === 100) continue; // drawn separately as the dashed target line
+    out += `<div class="cgridline" style="left:${(v / scale) * 100}%"></div>`;
+  }
+  return out;
+}
+
+function chartAxis(scale){
+  let ticks = "";
+  for (let v = 0; v <= scale; v += 25){
+    // Nudge the end labels inward so they don't hang off the plot area.
+    const shift = v === 0 ? "0" : v === scale ? "-100%" : "-50%";
+    ticks += `<span style="left:${(v / scale) * 100}%;transform:translateX(${shift})">${v}%</span>`;
+  }
+  return `<div class="caxis"><div></div><div class="caxis-ticks">${ticks}</div><div></div></div>`;
+}
+
+function renderChart(nodeId, title, sub, period){
+  const scale = chartScale(data.gyms, period);
+  const rows = data.gyms.slice().sort((a, b) => {
+    const av = a[period].targetSet ? (a[period].achievedPct ?? -1) : -1;
+    const bv = b[period].targetSet ? (b[period].achievedPct ?? -1) : -1;
+    if (bv !== av) return bv - av;
+    return a.gym.localeCompare(b.gym);
+  });
+
+  el(nodeId).innerHTML = `
+    <div class="chart-head">
+      <div class="chart-title">${esc(title)}</div>
+      <div class="chart-sub">${esc(sub)}</div>
+    </div>
+    <div class="chart-legend">
+      <span><i class="lg-bar"></i> Banked so far</span>
+      <span><i class="lg-exp"></i> Expected by now</span>
+      <span><i class="lg-proj"></i> Finish at current run rate</span>
+      <span><i class="lg-100"></i> Target</span>
+    </div>
+    ${chartAxis(scale)}
+    ${rows.map(g => chartRow(g, period, scale)).join("")}`;
+}
+
+function renderCharts(){
+  const cal = data.calendar;
+  renderChart("chartWeek", "This week", `Mon ${cal.weekStart} → Sun · day ${cal.weekDayIndex} of 7`, "week");
+  renderChart("chartMonth", "This month", `${cal.monthStart.slice(0, 7)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, "month");
+}
+
+function setView(v){
+  currentView = v;
+  try { localStorage.setItem(VIEW_KEY, v); } catch (e) {}
+  el("viewCharts").classList.toggle("active", v === "charts");
+  el("viewList").classList.toggle("active", v === "list");
+  el("chartsView").style.display = v === "charts" ? "" : "none";
+  el("gymSection").style.display = v === "charts" ? "none" : "";
+  el("sortSel").style.display = v === "charts" ? "none" : "";
+  if (v === "charts") renderCharts(); else renderList();
+}
+
 function heroCard(label, span, block, extraFoot){
   const t = block.targetSet ? tone(block.pacePct != null ? block.pacePct
             : (block.expectedPct > 0 ? (block.achievedPct / block.expectedPct) * 100 : null)) : "none";
@@ -350,12 +539,14 @@ function render(){
     + heroCard("This month", `${cal.monthStart.slice(0,7)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, scope.month, monthFoot);
 
   // A single-gym login gets the detail and trend on their own, without the
-  // meters the hero above already shows.
+  // meters the hero above already shows. Charts comparing one gym with itself
+  // would be noise, so the view switch doesn't appear.
   if (single){
     const g = data.gyms[0];
+    el("viewbar").style.display = "none";
+    el("chartsView").style.display = "none";
     el("gymSection").style.display = "";
     el("gymSectionTitle").textContent = "Detail";
-    el("sortSel").style.display = "none";
     el("gymGrid").style.gridTemplateColumns = "minmax(0,760px)";
     el("gymGrid").innerHTML = `
       <div class="gym-card">
@@ -374,9 +565,15 @@ function render(){
     return;
   }
 
-  el("gymSection").style.display = "";
-  el("sortSel").style.display = "";
+  el("viewbar").style.display = "";
+  setView(currentView);
+}
+
+// The per-gym breakdown: meters, pace, needed per day, projection and the
+// 14-day trend for every gym on the login.
+function renderList(){
   el("gymSectionTitle").textContent = `By gym (${data.gyms.length})`;
+  el("gymGrid").style.gridTemplateColumns = "";
 
   const sortBy = el("sortSel").value;
   const rank = g => {
