@@ -10,8 +10,8 @@
 const crypto = require("crypto");
 const {
   requireSession, loadUsers, saveUsers, publicUser, hashPassword, parseBody
-} = require("./_auth");
-const { GYM_LABELS } = require("./_gyms");
+} = require("../lib/auth");
+const { GYM_LABELS } = require("../lib/gyms");
 
 const ROLES = new Set(["admin", "gym"]);
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{1,31}$/;

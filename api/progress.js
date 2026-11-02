@@ -12,9 +12,9 @@
 // The 1.5h offset to the WA gyms only misattributes orders placed after
 // 22:30 AWST, which is past closing.
 
-const { requireSession, kvGet, scopeGyms } = require("./_auth");
-const { GYM_LABELS } = require("./_gyms");
-const { loadTargets } = require("./_targets");
+const { requireSession, kvGet, scopeGyms } = require("../lib/auth");
+const { GYM_LABELS } = require("../lib/gyms");
+const { loadTargets } = require("../lib/targets");
 
 const KV_GYM_DATA = "gymData";
 const TREND_DAYS = 14;

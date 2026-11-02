@@ -1,8 +1,8 @@
 // GET /api/me — who the current session belongs to, and what it can see.
 // The pages use this to decide which nav links and controls to render.
 
-const { requireSession, scopeGyms, loadUsers } = require("./_auth");
-const { GYM_LABELS } = require("./_gyms");
+const { requireSession, scopeGyms, loadUsers } = require("../lib/auth");
+const { GYM_LABELS } = require("../lib/gyms");
 
 module.exports = async function handler(req, res){
   res.setHeader("Cache-Control", "no-store");

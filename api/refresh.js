@@ -94,10 +94,10 @@ const topCat = li => {
   return TOP_CATEGORIES.includes(pt) ? pt : null;
 };
 
-// The gym roster lives in _gyms.js so the targets and progress endpoints
+// The gym roster lives in lib/gyms.js so the targets and progress endpoints
 // stay in step with what the cron aggregates.
-const { mapLocation } = require("./_gyms");
-const { getSession } = require("./_auth");
+const { mapLocation } = require("../lib/gyms");
+const { getSession } = require("../lib/auth");
 
 function shopifyShop(){
   const s = process.env.SHOPIFY_STORE || "";

@@ -1,6 +1,6 @@
 // POST /api/logout — clears the session cookie.
 
-const { clearedCookie } = require("./_auth");
+const { clearedCookie } = require("../lib/auth");
 
 module.exports = async function handler(req, res){
   if (req.method !== "POST"){

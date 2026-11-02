@@ -10,9 +10,9 @@
 // Shape:
 //   { updatedAt, updatedBy, basis, gyms: { "<label>": { daily, weekly, monthly } } }
 
-const { requireSession, kvSet, parseBody } = require("./_auth");
-const { GYM_LABELS } = require("./_gyms");
-const { KV_TARGETS, FIELDS, BASES, DEFAULT_BASIS, loadTargets } = require("./_targets");
+const { requireSession, kvSet, parseBody } = require("../lib/auth");
+const { GYM_LABELS } = require("../lib/gyms");
+const { KV_TARGETS, FIELDS, BASES, DEFAULT_BASIS, loadTargets } = require("../lib/targets");
 
 const MAX_TARGET = 100_000_000;
 

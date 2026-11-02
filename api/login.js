@@ -4,7 +4,7 @@
 // knows where to send them: admins to the $ sales dashboard, gym accounts to
 // the capacity dashboard (which never shows a dollar figure).
 
-const { authenticate, signSession, sessionCookie, parseBody } = require("./_auth");
+const { authenticate, signSession, sessionCookie, parseBody } = require("../lib/auth");
 
 const FAILED_ATTEMPT_DELAY_MS = 250;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
