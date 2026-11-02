@@ -14,7 +14,10 @@
 
 const { requireSession, kvGet, scopeGyms } = require("../lib/auth");
 const { GYM_LABELS } = require("../lib/gyms");
-const { loadTargets } = require("../lib/targets");
+const { loadTargets, weekTarget, monthTarget } = require("../lib/targets");
+const {
+  addDays, toDate, dowIndex, mondayOf, salesMonthOf, salesMonthRange, monthLabel
+} = require("../lib/dates");
 
 const KV_GYM_DATA = "gymData";
 const TREND_DAYS = 14;
@@ -54,18 +57,6 @@ function tradingFraction(hour){
   return Math.min(1, Math.max(0, (hour - TRADING_START_HOUR) / span));
 }
 
-// ISO date helpers. Anchored at UTC noon so a DST shift can't roll the date.
-function toDate(iso){
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 12));
-}
-function toISO(dt){ return dt.toISOString().slice(0, 10); }
-function addDays(iso, n){
-  const d = toDate(iso);
-  d.setUTCDate(d.getUTCDate() + n);
-  return toISO(d);
-}
-
 // daily[date][gym] = [exGymRevenue, excludedRevenue, orderCount, giftCardRevenue]
 // where giftCardRevenue is a slice of excludedRevenue, not a fourth bucket.
 // Snapshots written before the gift card split have no index 3 and read as 0.
@@ -102,12 +93,6 @@ const round2 = v => (v == null ? null : Math.round(v * 100) / 100);
 // still add up to exactly the weekly target.
 const DOW_WINDOW_DAYS = 84;   // 12 weeks — enough samples to see a shape
 const DOW_MIN_SAMPLES = 4;    // per weekday, before trusting it over an even split
-
-// 0 = Monday … 6 = Sunday
-function dowIndex(iso){
-  const d = toDate(iso).getUTCDay();
-  return d === 0 ? 6 : d - 1;
-}
 
 // Median, not mean: one freak trading day or a one-off closure shouldn't
 // redefine what a normal Tuesday looks like.
@@ -267,6 +252,9 @@ function buildGymRow({ gym, daily, targets, basis, cal, dayTarget }){
   return {
     gym,
     hasAnyTarget: t.weekly > 0 || t.monthly > 0,
+    // "explicit" when this week was entered, "carried" when it is standing in
+    // from an earlier week, "unset" when there is nothing to go on.
+    weekTargetSource: t.weeklySource || "unset",
     today: {
       targetSet: todayTarget > 0,
       achievedPct: round1(pct(todayActual, todayTarget)),
@@ -317,21 +305,30 @@ module.exports = async function handler(req, res){
   const { date: today, hour } = adelaideNow();
   const todayFraction = tradingFraction(hour);
 
-  const dow = toDate(today).getUTCDay();          // 0 = Sunday
-  const weekDayIndex = dow === 0 ? 7 : dow;       // 1 = Monday … 7 = Sunday
-  const [year, month] = today.split("-").map(Number);
+  // The month here is the sales month — whole Mon–Sun weeks, the month taking
+  // each week that has the majority of its days (lib/dates.js). So it runs
+  // Mon 2 Nov → Sun 29 Nov rather than 1–30, and its target is simply its
+  // weeks added up.
+  const weekStart = mondayOf(today);
+  const weekDayIndex = dowIndex(today) + 1;       // 1 = Monday … 7 = Sunday
+  const salesMonth = salesMonthOf(today);
+  const monthRange = salesMonthRange(salesMonth);
 
   const cal = {
     today,
     yesterday: addDays(today, -1),
     todayFraction,
-    weekStart: addDays(today, -(weekDayIndex - 1)),
-    weekEnd: addDays(today, 7 - weekDayIndex),
+    weekStart,
+    weekEnd: addDays(weekStart, 6),
     weekDayIndex,
-    monthStart: `${year}-${String(month).padStart(2, "0")}-01`,
-    monthEnd: `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`,
-    monthDayIndex: Number(today.slice(8, 10)),
-    daysInMonth: new Date(Date.UTC(year, month, 0)).getUTCDate()
+    salesMonth,
+    salesMonthLabel: monthLabel(salesMonth),
+    monthStart: monthRange.start,
+    monthEnd: monthRange.end,
+    weeksInMonth: monthRange.weeks.length,
+    // Which day of the sales month today is, and how long that month runs.
+    monthDayIndex: Math.round((toDate(today) - toDate(monthRange.start)) / 864e5) + 1,
+    daysInMonth: monthRange.days
   };
 
   const basis = targetSheet.basis;
@@ -340,16 +337,31 @@ module.exports = async function handler(req, res){
 
   // Each gym's weekday shape, measured once and reused for its own row and
   // for the roll-up below.
+  // This week's and this sales month's target per gym, pulled from the week
+  // store. `source` says whether the week was entered or carried forward from
+  // an earlier one, so the dashboard can be honest about which it is.
+  const targets = {};
+  for (const gym of gyms){
+    const wk = weekTarget(targetSheet, gym, cal.weekStart);
+    const mo = monthTarget(targetSheet, gym, cal.salesMonth);
+    targets[gym] = {
+      weekly: wk.amount,
+      weeklySource: wk.source,
+      monthly: mo.amount,
+      daily: wk.amount > 0 ? wk.amount / 7 : 0
+    };
+  }
+
   const dayTargets = {};
   for (const gym of gyms){
-    const weekly = (targetSheet.gyms[gym] || {}).weekly || 0;
+    const weekly = targets[gym].weekly;
     const shares = weekly > 0 ? weekdayShares(daily, gym, basis, cal.today) : null;
     dayTargets[gym] = makeDayTarget(weekly, shares);
   }
   const groupDayTarget = date => gyms.reduce((sum, gym) => sum + dayTargets[gym].on(date), 0);
 
   const rows = gyms.map(gym => buildGymRow({
-    gym, daily, targets: targetSheet.gyms, basis, cal, dayTarget: dayTargets[gym]
+    gym, daily, targets, basis, cal, dayTarget: dayTargets[gym]
   }));
 
   // Roll-up: sum the actuals and the targets, then take the percentage, so a
@@ -361,10 +373,9 @@ module.exports = async function handler(req, res){
     totals.yesterday += sumRange(daily, gym, cal.yesterday, cal.yesterday, basis);
     totals.week      += sumRange(daily, gym, cal.weekStart, cal.today, basis);
     totals.month     += sumRange(daily, gym, cal.monthStart, cal.today, basis);
-    const t = targetSheet.gyms[gym] || {};
-    targetTotals.daily   += t.daily   || 0;
-    targetTotals.weekly  += t.weekly  || 0;
-    targetTotals.monthly += t.monthly || 0;
+    targetTotals.daily   += targets[gym].daily;
+    targetTotals.weekly  += targets[gym].weekly;
+    targetTotals.monthly += targets[gym].monthly;
   }
 
   // The roll-up's own 14-day trend. It has to be summed here rather than
@@ -406,14 +417,14 @@ module.exports = async function handler(req, res){
     week: periodStats({
       actual: totals.week, target: targetTotals.weekly,
       expectedSoFar: gyms.reduce((s, gym) => s +
-        ((targetSheet.gyms[gym] || {}).weekly || 0) *
+        targets[gym].weekly *
         elapsedTargetShare(dayTargets[gym], cal.weekStart, cal.weekEnd, cal), 0),
       daysTotal: 7, daysElapsedWhole: cal.weekDayIndex
     }),
     month: periodStats({
       actual: totals.month, target: targetTotals.monthly,
       expectedSoFar: gyms.reduce((s, gym) => s +
-        ((targetSheet.gyms[gym] || {}).monthly || 0) *
+        targets[gym].monthly *
         elapsedTargetShare(dayTargets[gym], cal.monthStart, cal.monthEnd, cal), 0),
       daysTotal: cal.daysInMonth, daysElapsedWhole: cal.monthDayIndex
     })
@@ -426,8 +437,14 @@ module.exports = async function handler(req, res){
     calendar: {
       today: cal.today,
       weekStart: cal.weekStart,
+      weekEnd: cal.weekEnd,
       weekDayIndex: cal.weekDayIndex,
+      salesMonth: cal.salesMonth,
+      salesMonthLabel: cal.salesMonthLabel,
+      weeksInMonth: cal.weeksInMonth,
+      weekOfMonth: Math.floor(Math.round((toDate(cal.weekStart) - toDate(cal.monthStart)) / 864e5) / 7) + 1,
       monthStart: cal.monthStart,
+      monthEnd: cal.monthEnd,
       monthDayIndex: cal.monthDayIndex,
       daysInMonth: cal.daysInMonth,
       todayElapsedPct: round1(todayFraction * 100),

@@ -471,8 +471,10 @@ function renderChart(nodeId, title, sub, period){
 
 function renderCharts(){
   const cal = data.calendar;
-  renderChart("chartWeek", "This week", `Mon ${fmtDate(cal.weekStart)} → Sun · day ${cal.weekDayIndex} of 7`, "week");
-  renderChart("chartMonth", "This month", `${fmtMonth(cal.monthStart)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, "month");
+  renderChart("chartWeek", "This week",
+    `Week ${cal.weekOfMonth} of ${cal.salesMonthLabel} · Mon ${fmtDate(cal.weekStart)} → Sun ${fmtDate(cal.weekEnd)} · day ${cal.weekDayIndex} of 7`, "week");
+  renderChart("chartMonth", "This month",
+    `${cal.salesMonthLabel} · ${cal.weeksInMonth} weeks · ${fmtDate(cal.monthStart)} → ${fmtDate(cal.monthEnd)}`, "month");
 }
 
 function setView(v){
@@ -536,7 +538,7 @@ function render(){
   el("metaRow").innerHTML = `
     <span>Today <b>${esc(fmtDate(cal.today))}</b></span>
     <span>Week <b>day ${cal.weekDayIndex} of 7</b></span>
-    <span>Month <b>day ${cal.monthDayIndex} of ${cal.daysInMonth}</b></span>
+    <span>${esc(cal.salesMonthLabel)} <b>week ${cal.weekOfMonth} of ${cal.weeksInMonth}</b></span>
     <span>Measured on <b>${esc(basisLabel)}</b></span>
     <span>Sales data <b>${esc(timeAgo(data.dataUpdatedAt))}</b></span>
     <span>Targets set <b>${esc(timeAgo(data.targetsUpdatedAt))}</b></span>`;
@@ -590,8 +592,8 @@ function render(){
 
   el("hero").innerHTML =
       heroCard("Today", dayLabel(cal.today) + " " + fmtDate(cal.today), scope.today, todayFoot, scope.trend)
-    + heroCard("This week", `Mon ${fmtDate(cal.weekStart)} → Sun · day ${cal.weekDayIndex} of 7`, scope.week, weekFoot)
-    + heroCard("This month", `${fmtMonth(cal.monthStart)} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, scope.month, monthFoot);
+    + heroCard("This week", `Week ${cal.weekOfMonth} · Mon ${fmtDate(cal.weekStart)} → Sun ${fmtDate(cal.weekEnd)} · day ${cal.weekDayIndex} of 7`, scope.week, weekFoot)
+    + heroCard("This month", `${esc(cal.salesMonthLabel)} · week ${cal.weekOfMonth} of ${cal.weeksInMonth} · day ${cal.monthDayIndex} of ${cal.daysInMonth}`, scope.month, monthFoot);
 
   // A single-gym login gets the detail and trend on their own, without the
   // meters the hero above already shows. Charts comparing one gym with itself
