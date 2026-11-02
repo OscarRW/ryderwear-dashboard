@@ -138,6 +138,8 @@ function periodStats({ actual, target, dayTarget, daysTotal, daysElapsedWhole, t
 }
 
 function buildGymRow({ gym, daily, targets, basis, cal }){
+  // t.daily is derived by lib/targets.js as weekly ÷ 7 — the weekly target
+  // spread evenly across Mon–Sun. It is never entered or stored.
   const t = targets[gym] || { daily: 0, weekly: 0, monthly: 0 };
 
   const todayActual = sumRange(daily, gym, cal.today, cal.today, basis);
@@ -158,7 +160,7 @@ function buildGymRow({ gym, daily, targets, basis, cal }){
 
   return {
     gym,
-    hasAnyTarget: t.daily > 0 || t.weekly > 0 || t.monthly > 0,
+    hasAnyTarget: t.weekly > 0 || t.monthly > 0,
     today: {
       targetSet: t.daily > 0,
       achievedPct: round1(pct(todayActual, t.daily)),
@@ -240,9 +242,25 @@ module.exports = async function handler(req, res){
     targetTotals.monthly += t.monthly || 0;
   }
 
+  // The roll-up's own 14-day trend. It has to be summed here rather than
+  // averaged on the client: the per-gym rows carry percentages only, so a
+  // client-side mean would weight a small gym the same as a big one.
+  const groupTrend = [];
+  for (let i = TREND_DAYS - 1; i >= 0; i--){
+    const date = addDays(cal.today, -i);
+    let actual = 0;
+    for (const gym of gyms) actual += sumRange(daily, gym, date, date, basis);
+    groupTrend.push({
+      date,
+      pct: round1(pct(actual, targetTotals.daily)),
+      isToday: date === cal.today
+    });
+  }
+
   const group = {
     gymCount: gyms.length,
     gymsWithTargets: rows.filter(r => r.hasAnyTarget).length,
+    trend: groupTrend,
     today: {
       targetSet: targetTotals.daily > 0,
       achievedPct: round1(pct(totals.today, targetTotals.daily)),

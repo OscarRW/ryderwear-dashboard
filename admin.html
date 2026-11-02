@@ -45,6 +45,8 @@ input:focus,select:focus{border-color:#6366f1}
 td input[type=number]{text-align:right;max-width:150px}
 .hint{font-size:13px;color:#a0a0a8;white-space:nowrap}
 .hint.warn{color:#a16207}
+.hint.bad{color:#c8302d;font-weight:600}
+td.derived{color:#777;font-size:15px;font-variant-numeric:tabular-nums}
 
 .actions{display:flex;gap:10px;align-items:center;margin-top:20px;flex-wrap:wrap}
 button.primary{background:#1a1a26;color:#fff;border:1px solid #1a1a26;border-radius:8px;padding:11px 22px;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;transition:background .15s}
@@ -131,8 +133,10 @@ label{display:block;font-size:13px;font-weight:700;color:#777;text-transform:upp
     <div class="card">
       <div class="card-title">Sales targets by gym</div>
       <div class="card-note">
-        Enter targets in dollars. Gym logins never see these figures or their takings
-        to date — the tracking dashboard shows percentage of target, plus the dollars
+        Enter targets in dollars. The daily target isn't entered — it's the weekly
+        target spread evenly across Mon–Sun, so it can't drift out of step with the
+        week it should add up to. Gym logins never see these figures or their takings
+        to date; the tracking dashboard shows percentage of target, plus the dollars
         still needed per day to land the week and the month. Leave a field at 0 to
         leave that period untracked.
       </div>
@@ -140,10 +144,10 @@ label{display:block;font-size:13px;font-weight:700;color:#777;text-transform:upp
         <thead>
           <tr>
             <th>Gym</th>
-            <th class="num">Daily target</th>
             <th class="num">Weekly target</th>
             <th class="num">Monthly target</th>
-            <th>Consistency</th>
+            <th class="num">Per day</th>
+            <th>Do these agree?</th>
           </tr>
         </thead>
         <tbody id="targetRows"></tbody>
@@ -250,43 +254,49 @@ function daysInThisMonth(){
 // ── Targets ───────────────────────────────────────────────────────────────
 function renderTargetRows(){
   el("targetRows").innerHTML = roster.map(gym => {
-    const t = targets[gym] || { daily: 0, weekly: 0, monthly: 0 };
+    const t = targets[gym] || { weekly: 0, monthly: 0 };
     return `
       <tr data-gym="${esc(gym)}">
         <td class="gym-cell">${esc(gym)}</td>
-        <td class="num"><input type="number" min="0" step="any" data-field="daily"   value="${t.daily   || ""}" oninput="updateHint(this)"></td>
         <td class="num"><input type="number" min="0" step="any" data-field="weekly"  value="${t.weekly  || ""}" oninput="updateHint(this)"></td>
         <td class="num"><input type="number" min="0" step="any" data-field="monthly" value="${t.monthly || ""}" oninput="updateHint(this)"></td>
+        <td class="num derived" data-role="daily">—</td>
         <td class="hint" data-role="hint"></td>
       </tr>`;
   }).join("");
-  document.querySelectorAll('#targetRows input[data-field="daily"]').forEach(updateHint);
+  document.querySelectorAll('#targetRows input[data-field="weekly"]').forEach(updateHint);
 }
 
-// Flags a daily target that doesn't line up with the weekly/monthly ones. It's
-// only a nudge — the three are entered independently on purpose.
+// Shows the derived daily figure, and flags a weekly and monthly target that
+// describe different-sized businesses. Scaling the week up to this month's
+// length is the only way to compare them, and it catches both a typo and a
+// pair that were simply set from different assumptions.
 function updateHint(input){
   const row = input.closest("tr");
   const read = f => Number(row.querySelector(`input[data-field="${f}"]`).value) || 0;
-  const daily = read("daily"), weekly = read("weekly"), monthly = read("monthly");
+  const weekly = read("weekly"), monthly = read("monthly");
   const cell = row.querySelector('[data-role="hint"]');
+  const dailyCell = row.querySelector('[data-role="daily"]');
   const dim = daysInThisMonth();
 
-  if (!daily && !weekly && !monthly){ cell.textContent = "Not tracked"; cell.className = "hint"; return; }
+  dailyCell.textContent = weekly ? money(weekly / 7) : "—";
 
-  const notes = [];
-  if (daily && weekly){
-    const implied = daily * 7;
-    const drift = Math.round((weekly / implied - 1) * 100);
-    if (Math.abs(drift) >= 10) notes.push(`weekly is ${drift > 0 ? "+" : ""}${drift}% vs daily×7`);
+  if (!weekly && !monthly){ cell.textContent = "Not tracked"; cell.className = "hint"; return; }
+  if (!weekly || !monthly){
+    cell.textContent = weekly ? "No monthly target" : "No weekly target";
+    cell.className = "hint";
+    return;
   }
-  if (daily && monthly){
-    const implied = daily * dim;
-    const drift = Math.round((monthly / implied - 1) * 100);
-    if (Math.abs(drift) >= 10) notes.push(`monthly is ${drift > 0 ? "+" : ""}${drift}% vs daily×${dim}`);
+
+  const impliedMonthly = weekly * (dim / 7);
+  const drift = Math.round((monthly / impliedMonthly - 1) * 100);
+  if (Math.abs(drift) >= 10){
+    cell.textContent = `monthly is ${drift > 0 ? "+" : ""}${drift}% vs the weekly rate (${money(impliedMonthly)})`;
+    cell.className = Math.abs(drift) >= 35 ? "hint bad" : "hint warn";
+  } else {
+    cell.textContent = `agree — weekly rate is ${money(impliedMonthly)}/month`;
+    cell.className = "hint";
   }
-  if (notes.length){ cell.textContent = notes.join(" · "); cell.className = "hint warn"; }
-  else { cell.textContent = daily ? `daily×7 = ${money(daily * 7)}` : "ok"; cell.className = "hint"; }
 }
 
 async function loadTargets(){
@@ -316,7 +326,6 @@ async function saveTargets(){
   document.querySelectorAll("#targetRows tr").forEach(row => {
     const gym = row.dataset.gym;
     gyms[gym] = {
-      daily:   Number(row.querySelector('input[data-field="daily"]').value)   || 0,
       weekly:  Number(row.querySelector('input[data-field="weekly"]').value)  || 0,
       monthly: Number(row.querySelector('input[data-field="monthly"]').value) || 0
     };
