@@ -122,17 +122,31 @@ function median(values){
 // history to see a pattern — in which case the caller falls back to sevenths.
 // Today is excluded throughout: it's half-traded and would drag its weekday down.
 function weekdayShares(daily, gym, basis, today){
-  const buckets = [[], [], [], [], [], [], []];
-  for (let i = 1; i <= DOW_WINDOW_DAYS; i++){
+  // Oldest first, so the window can be trimmed to when this gym opened.
+  const samples = [];
+  for (let i = DOW_WINDOW_DAYS; i >= 1; i--){
     const date = addDays(today, -i);
     if (!daily[date]) continue;                  // no snapshot for that day at all
-    buckets[dowIndex(date)].push(cellValue(daily[date][gym], basis));
+    samples.push({ date, value: cellValue(daily[date][gym], basis) });
   }
+
+  // A gym added part-way through the window has structural zeros from before
+  // it opened, and counting those drags its medians toward zero — a site added
+  // five weeks ago reads as "shut on Mondays". Start at its first day of trade.
+  const opened = samples.findIndex(s => s.value > 0);
+  if (opened === -1) return null;
+
+  const buckets = [[], [], [], [], [], [], []];
+  for (const s of samples.slice(opened)) buckets[dowIndex(s.date)].push(s.value);
   if (buckets.some(b => b.length < DOW_MIN_SAMPLES)) return null;
 
   const medians = buckets.map(median);
   const total = medians.reduce((a, b) => a + b, 0);
-  if (!(total > 0)) return null;
+  // A zero median on any weekday would set that day's target to $0 and leave
+  // the day untrackable — no percentage, no bar. Far likelier to be a gap in
+  // the data than a gym that genuinely never trades on a Tuesday, so hand the
+  // whole gym back to the even split rather than publish an unusable target.
+  if (!(total > 0) || medians.some(m => m <= 0)) return null;
   return medians.map(m => m / total);
 }
 
