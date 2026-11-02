@@ -455,7 +455,7 @@ function renderChart(nodeId, title, sub, period){
     <div class="chart-legend">
       <span><i class="lg-bar"></i> Banked so far</span>
       <span><i class="lg-exp"></i> Expected by now</span>
-      <span><i class="lg-proj"></i> Finish at current run rate</span>
+      <span><i class="lg-proj"></i> Finish at this pace</span>
       <span><i class="lg-100"></i> Target</span>
     </div>
     ${chartAxis(scale)}
@@ -565,12 +565,12 @@ function render(){
     : `<span>Need <b class="${needTone(block)}">${moneyText(block.requiredPerDay)}</b> a day for ${block.daysRemainingIncludingToday} day${block.daysRemainingIncludingToday === 1 ? "" : "s"}</span>`;
 
   const weekFoot = scope.week.targetSet ? `
-      <span>Pace <b class="${tone(scope.week.pacePct)}">${pctText(scope.week.pacePct)}</b></span>
+      <span>Finishing at <b class="${tone(scope.week.pacePct)}">${scope.week.projectedPct == null ? "—" : pctText(scope.week.projectedPct)}</b></span>
       ${needFoot(scope.week)}`
     : "<span>Set a weekly target to track this</span>";
 
   const monthFoot = scope.month.targetSet ? `
-      <span>Pace <b class="${tone(scope.month.pacePct)}">${pctText(scope.month.pacePct)}</b></span>
+      <span>Finishing at <b class="${tone(scope.month.pacePct)}">${scope.month.projectedPct == null ? "—" : pctText(scope.month.projectedPct)}</b></span>
       ${needFoot(scope.month)}`
     : "<span>Set a monthly target to track this</span>";
 
@@ -656,10 +656,10 @@ function periodDetail(title, block){
   return `
     <div>
       <div class="detail-col-title">${esc(title)}</div>
-      <div class="detail-line"><span>Pace</span><b class="${tone(block.pacePct)}">${pctText(block.pacePct)}</b></div>
-      <div class="detail-line"><span>Run rate</span><b>${block.runRatePctOfDaily == null ? "too early" : pctText(block.runRatePctOfDaily) + " of a day"}</b></div>
+      <div class="detail-line"><span>Banked</span><b>${pctText(block.achievedPct)}</b></div>
+      <div class="detail-line"><span>Expected by now</span><b>${pctText(block.expectedPct)}</b></div>
+      <div class="detail-line"><span>Finish at this pace</span><b class="${tone(block.pacePct)}">${block.projectedPct == null ? "too early" : pctText(block.projectedPct)}</b></div>
       <div class="detail-line"><span>Need / day (${block.daysRemainingIncludingToday} left)</span>${need}</div>
-      <div class="detail-line"><span>Projected finish</span><b>${block.projectedPct == null ? "too early" : pctText(block.projectedPct)}</b></div>
     </div>`;
 }
 
