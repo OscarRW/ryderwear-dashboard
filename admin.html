@@ -43,6 +43,20 @@ tr:last-child td{border-bottom:none}
 input[type=number],input[type=text],input[type=password],select{background:#fff;color:#1a1a26;border:1px solid #d4d4d8;border-radius:8px;padding:9px 11px;font-size:16px;font-family:inherit;outline:none;transition:border-color .15s;width:100%}
 input:focus,select:focus{border-color:#6366f1}
 td input[type=number]{text-align:right;max-width:150px}
+.month-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.month-range{font-size:14px;color:#8a8a92;margin-top:3px}
+#monthSel{max-width:320px}
+.table-scroll{overflow-x:auto}
+.table-scroll table{min-width:660px}
+th.wk{text-align:right}
+th.wk small{display:block;font-weight:500;letter-spacing:0;text-transform:none;color:#a8a8ae;margin-top:2px}
+td.total{text-align:right;font-weight:700;color:#1a1a26;font-variant-numeric:tabular-nums;white-space:nowrap}
+tfoot td{padding-top:12px;font-weight:700;color:#1a1a26;border-top:2px solid #ececef;font-variant-numeric:tabular-nums}
+tfoot td.lbl{font-weight:600;color:#777}
+input.carried{color:#a0a0a8}
+.legend-note{font-size:13px;color:#a0a0a8;margin-top:12px;display:flex;align-items:center;gap:7px}
+.swatch{width:11px;height:11px;border-radius:3px;display:inline-block}
+.swatch.carried{background:#d4d4d8}
 .hint{font-size:13px;color:#a0a0a8;white-space:nowrap}
 .hint.warn{color:#a16207}
 .hint.bad{color:#c8302d;font-weight:600}
@@ -131,31 +145,37 @@ label{display:block;font-size:13px;font-weight:700;color:#777;text-transform:upp
     </div>
 
     <div class="card">
-      <div class="card-title">Sales targets by gym</div>
-      <div class="card-note">
-        Enter targets in dollars. The daily target isn't entered — it's the weekly
-        target spread evenly across Mon–Sun, so it can't drift out of step with the
-        week it should add up to. Gym logins never see these figures or their takings
-        to date; the tracking dashboard shows percentage of target, plus the dollars
-        still needed per day to land the week and the month. Leave a field at 0 to
-        leave that period untracked.
+      <div class="month-head">
+        <div>
+          <div class="card-title">Weekly targets by gym</div>
+          <div class="month-range" id="monthRange"></div>
+        </div>
+        <select id="monthSel" onchange="loadTargets()"></select>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Gym</th>
-            <th class="num">Weekly target</th>
-            <th class="num">Monthly target</th>
-            <th class="num">Per day</th>
-            <th>Do these agree?</th>
-          </tr>
-        </thead>
-        <tbody id="targetRows"></tbody>
-      </table>
+      <div class="card-note">
+        Enter each week in dollars. The sales week runs Mon–Sun, and a month takes
+        whichever weeks have the majority of their days in it — so a month is four
+        or five whole weeks, not the 1st to the 30th. The month total is the weeks
+        added up, and the daily target is the week split across Mon–Sun by each
+        gym's own trading pattern, so nothing below the week is ever typed.
+        Pick a later month to set it up in advance.
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr id="targetHead"></tr></thead>
+          <tbody id="targetRows"></tbody>
+          <tfoot><tr id="targetFoot"></tr></tfoot>
+        </table>
+      </div>
       <div class="actions">
         <button class="primary" id="saveTargets" onclick="saveTargets()">Save targets</button>
         <button class="ghost" onclick="loadTargets()">Discard changes</button>
+        <button class="ghost" onclick="fillAcross()" title="Copy each gym's first week across the rest of the month">Copy week 1 across</button>
         <span class="status" id="targetStatus"></span>
+      </div>
+      <div class="legend-note">
+        <span class="swatch carried"></span> grey means carried over from an earlier
+        week — save to make it this month's own figure
       </div>
     </div>
   </div>
@@ -246,61 +266,103 @@ function showTab(name){
   document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
 }
 
-function daysInThisMonth(){
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-}
-
 // ── Targets ───────────────────────────────────────────────────────────────
-function renderTargetRows(){
-  el("targetRows").innerHTML = roster.map(gym => {
-    const t = targets[gym] || { weekly: 0, monthly: 0 };
-    return `
-      <tr data-gym="${esc(gym)}">
-        <td class="gym-cell">${esc(gym)}</td>
-        <td class="num"><input type="number" min="0" step="any" data-field="weekly"  value="${t.weekly  || ""}" oninput="updateHint(this)"></td>
-        <td class="num"><input type="number" min="0" step="any" data-field="monthly" value="${t.monthly || ""}" oninput="updateHint(this)"></td>
-        <td class="num derived" data-role="daily">—</td>
-        <td class="hint" data-role="hint"></td>
-      </tr>`;
-  }).join("");
-  document.querySelectorAll('#targetRows input[data-field="weekly"]').forEach(updateHint);
+// Targets are entered a month at a time, one column per Mon–Sun week. The
+// month total is the sum of its weeks, so the two can never disagree.
+let monthData = null;   // the month currently on screen
+
+function fmtDay(iso){
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}`;
 }
 
-// Shows the derived daily figure, and flags a weekly and monthly target that
-// describe different-sized businesses. Scaling the week up to this month's
-// length is the only way to compare them, and it catches both a typo and a
-// pair that were simply set from different assumptions.
-function updateHint(input){
-  const row = input.closest("tr");
-  const read = f => Number(row.querySelector(`input[data-field="${f}"]`).value) || 0;
-  const weekly = read("weekly"), monthly = read("monthly");
-  const cell = row.querySelector('[data-role="hint"]');
-  const dailyCell = row.querySelector('[data-role="daily"]');
-  const dim = daysInThisMonth();
+function renderMonthOptions(months, selected){
+  el("monthSel").innerHTML = months.map(m =>
+    `<option value="${esc(m.ym)}" ${m.ym === selected ? "selected" : ""}>${esc(m.label)} · ${m.weeks} weeks${m.isCurrent ? " · current" : ""}</option>`
+  ).join("");
+}
 
-  dailyCell.textContent = weekly ? money(weekly / 7) : "—";
+function renderTargetTable(){
+  if (!monthData) return;
+  const weeks = monthData.weeks;
 
-  if (!weekly && !monthly){ cell.textContent = "Not tracked"; cell.className = "hint"; return; }
-  if (!weekly || !monthly){
-    cell.textContent = weekly ? "No monthly target" : "No weekly target";
-    cell.className = "hint";
-    return;
+  el("monthRange").textContent =
+    `${monthData.weeks.length} weeks · Mon ${fmtDay(monthData.range.start)} – Sun ${fmtDay(monthData.range.end)}`;
+
+  el("targetHead").innerHTML =
+    `<th>Gym</th>` +
+    weeks.map((w, i) => `<th class="num wk">Week ${i + 1}<small>Mon ${fmtDay(w.monday)}</small></th>`).join("") +
+    `<th class="num">Month</th>`;
+
+  el("targetRows").innerHTML = roster.map(gym => {
+    const row = monthData.gyms[gym] || { weeks: {}, sources: {} };
+    const cells = weeks.map(w => {
+      const v = row.weeks[w.monday] || 0;
+      const carried = row.sources[w.monday] === "carried";
+      return `<td class="num"><input type="number" min="0" step="any"
+        class="${carried ? "carried" : ""}"
+        data-gym="${esc(gym)}" data-week="${w.monday}"
+        value="${v || ""}" oninput="onTargetInput(this)"></td>`;
+    }).join("");
+    return `<tr data-gym="${esc(gym)}">
+      <td class="gym-cell">${esc(gym)}</td>${cells}
+      <td class="total" data-role="rowtotal">—</td>
+    </tr>`;
+  }).join("");
+
+  recomputeTotals();
+}
+
+// A changed cell is this month's own figure, not an inherited one.
+function onTargetInput(input){
+  input.classList.remove("carried");
+  recomputeTotals();
+}
+
+function recomputeTotals(){
+  if (!monthData) return;
+  const weeks = monthData.weeks.map(w => w.monday);
+  const colTotals = Object.fromEntries(weeks.map(w => [w, 0]));
+  let grand = 0;
+
+  for (const tr of document.querySelectorAll("#targetRows tr")){
+    let rowTotal = 0;
+    for (const input of tr.querySelectorAll("input[data-week]")){
+      const v = Number(input.value) || 0;
+      rowTotal += v;
+      colTotals[input.dataset.week] += v;
+    }
+    tr.querySelector('[data-role="rowtotal"]').textContent = rowTotal ? money(rowTotal) : "—";
+    grand += rowTotal;
   }
 
-  const impliedMonthly = weekly * (dim / 7);
-  const drift = Math.round((monthly / impliedMonthly - 1) * 100);
-  if (Math.abs(drift) >= 10){
-    cell.textContent = `monthly is ${drift > 0 ? "+" : ""}${drift}% vs the weekly rate (${money(impliedMonthly)})`;
-    cell.className = Math.abs(drift) >= 35 ? "hint bad" : "hint warn";
-  } else {
-    cell.textContent = `agree — weekly rate is ${money(impliedMonthly)}/month`;
-    cell.className = "hint";
+  el("targetFoot").innerHTML =
+    `<td class="lbl">All gyms</td>` +
+    weeks.map(w => `<td class="num">${colTotals[w] ? money(colTotals[w]) : "—"}</td>`).join("") +
+    `<td class="total">${grand ? money(grand) : "—"}</td>`;
+}
+
+// Most months are the same week repeated; this saves typing it four times.
+function fillAcross(){
+  if (!monthData) return;
+  const weeks = monthData.weeks.map(w => w.monday);
+  if (weeks.length < 2) return;
+  for (const tr of document.querySelectorAll("#targetRows tr")){
+    const inputs = [...tr.querySelectorAll("input[data-week]")];
+    const first = inputs[0].value;
+    for (const input of inputs.slice(1)){
+      input.value = first;
+      input.classList.remove("carried");
+    }
   }
+  recomputeTotals();
+  flash(el("targetStatus"), "Week 1 copied across — not saved yet", true);
 }
 
 async function loadTargets(){
-  const r = await fetch("/api/targets", { cache: "no-store" });
+  const ym = el("monthSel").value;
+  const url = "/api/targets" + (ym ? `?month=${encodeURIComponent(ym)}` : "");
+  const r = await fetch(url, { cache: "no-store" });
   if (r.status === 401){ window.location.href = "/login.html"; return; }
   if (r.status === 403){ window.location.href = "/capacity.html"; return; }
   if (!r.ok){
@@ -310,37 +372,41 @@ async function loadTargets(){
   }
   const body = await r.json();
   roster = body.roster || [];
-  targets = body.gyms || {};
+  monthData = body;
   el("basisSel").value = body.basis || "total";
-  renderTargetRows();
+  if (!el("monthSel").options.length) renderMonthOptions(body.months, body.month);
+  renderTargetTable();
   renderGymPicker();
 }
 
 async function saveTargets(){
+  if (!monthData) return;
   const btn = el("saveTargets");
   btn.disabled = true;
   const prev = btn.textContent;
   btn.textContent = "Saving…";
 
   const gyms = {};
-  document.querySelectorAll("#targetRows tr").forEach(row => {
-    const gym = row.dataset.gym;
-    gyms[gym] = {
-      weekly:  Number(row.querySelector('input[data-field="weekly"]').value)  || 0,
-      monthly: Number(row.querySelector('input[data-field="monthly"]').value) || 0
-    };
-  });
+  for (const tr of document.querySelectorAll("#targetRows tr")){
+    const gym = tr.dataset.gym;
+    const weeks = {};
+    for (const input of tr.querySelectorAll("input[data-week]")){
+      weeks[input.dataset.week] = Number(input.value) || 0;
+    }
+    gyms[gym] = { weeks };
+  }
 
   try {
     const r = await fetch("/api/targets", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ gyms, basis: el("basisSel").value })
+      body: JSON.stringify({ month: monthData.month, gyms, basis: el("basisSel").value })
     });
     const body = await r.json().catch(() => ({}));
     if (r.ok){
-      targets = body.gyms || gyms;
-      flash(el("targetStatus"), "Targets saved", true);
+      monthData = body;
+      renderTargetTable();
+      flash(el("targetStatus"), `${body.monthLabel} saved`, true);
     } else {
       flash(el("targetStatus"), body.error || `Save failed (${r.status})`, false);
     }
